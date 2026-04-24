@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = '/api';
 let numPlayers = 2;
 let numRounds = 5;
 let timerMinutes = 3;
