@@ -5,7 +5,7 @@ const isDevelopment = window.location.hostname === 'localhost' ||
 // Use localhost for development, Render URL for production
 const API_BASE_URL = isDevelopment 
     ? 'http://localhost:3000/api'  // Local development
-    : 'https://draft-backend.onrender.com/api';  // Production on Render
+    : 'https://draft-backend-f40v.onrender.com/api';  // Production on Render
 
 console.log(`API running in ${isDevelopment ? 'development' : 'production'} mode`);
 console.log(`API URL: ${API_BASE_URL}`);
