@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draft Game | Final Scores</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="draft-app">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div>
+            <h1>SNAKE DRAFT</h1>
+            <div class="sub">Multiplayer snake draft · Timed picks · 2-8 players</div>
+        </div>
+        <div class="badge" id="dbStatus">✅ Ready</div>
+    </div>
+
+    <!-- Final Score Screen -->
+    <div id="finalScoreScreen" class="final-score-screen">
+        <div class="final-score-header">
+            <h2>🏆 FINAL SCORES 🏆</h2>
+            <p>Here are the final results</p>
+        </div>
+        
+        <div id="finalScoreContent" class="final-score-content">
+            <!-- Scores will be populated here -->
+        </div>
+        
+        <div class="final-score-actions">
+            <button id="newDraftBtn" class="primary-btn">Start New Draft</button>
+        </div>
+    </div>
+
+    <footer>🐍 Snake draft order reverses each round · Configurable timer per pick</footer>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="results.js"></script>
+</body>
+</html>

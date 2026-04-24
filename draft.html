@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draft Game | Drafting</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="draft-app">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div>
+            <h1>SNAKE DRAFT</h1>
+            <div class="sub">Multiplayer snake draft · Timed picks · 2-8 players</div>
+        </div>
+        <div class="badge" id="dbStatus">✅ Connected</div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen">
+        <div class="turn-panel">
+            <div class="turn-badge">
+                <span class="turn-label">🎲 CURRENT TURN</span>
+                <span id="activePlayerName" class="active-player">Player 1</span>
+            </div>
+            <div class="timer-container">
+                <span class="timer-icon">⏱️</span>
+                <span id="timerDisplay" class="timer-display">03:00</span>
+                <div class="timer-bar">
+                    <div id="timerBarFill" class="timer-bar-fill"></div>
+                </div>
+            </div>
+            <div class="turn-status">
+                <span class="lock-icon">⏳</span> 
+                <span id="turnMessage">Player 1's turn to draft</span>
+            </div>
+            <button id="backToStartBtn" class="reset-btn">← New Draft</button>
+        </div>
+
+        <div class="snake-indicator" id="snakeIndicator">
+            <span>🐍 SNAKE DRAFT MODE</span>
+            <span id="roundIndicator">Round 1 of 5</span>
+        </div>
+
+        <div id="playersContainer" class="players-container"></div>
+
+        <div class="available-pool">
+            <div class="section-header">
+                <h2 id="categoryTitle">📦 Draft Pool</h2>
+                <span class="badge" id="poolCount">0 items</span>
+            </div>
+            <div id="availableList" class="item-list">
+                <div class="empty-state">⚡ Complete setup to start drafting...</div>
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <button class="reset-btn" id="resetGameBtn">🔄 Reset Draft</button>
+            <button class="reset-all-btn" id="forceEndTurnBtn">⏩ Skip Turn (Random Pick)</button>
+        </div>
+    </div>
+
+    <footer>🐍 Snake draft order reverses each round · Timer resets each pick</footer>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="draft.js"></script>
+</body>
+</html>

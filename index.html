@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draft Game | Setup</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="draft-app">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div>
+            <h1>SNAKE DRAFT</h1>
+            <div class="sub">Multiplayer snake draft · Timed picks · 2-8 players</div>
+        </div>
+        <div class="badge" id="dbStatus">🔄 Connecting...</div>
+    </div>
+
+    <!-- Step 1: Player Count Selection -->
+    <div id="playerCountScreen" class="config-screen">
+        <div class="config-header">
+            <h2>👥 Step 1: Number of Players</h2>
+            <p>How many players will be drafting?</p>
+        </div>
+        
+        <div class="config-content">
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">👥</span>
+                    Players (2-8)
+                </label>
+                <div class="config-control">
+                    <button class="config-btn decrement" id="decPlayers">-</button>
+                    <span id="numPlayers" class="config-value">2</span>
+                    <button class="config-btn increment" id="incPlayers">+</button>
+                </div>
+                <div class="config-hint">More players = longer draft</div>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button id="continueToCategoryBtn" class="primary-btn">Next: Choose Category →</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Category Selection -->
+    <div id="categoryScreen" class="config-screen" style="display: none;">
+        <div class="config-header">
+            <h2>🎯 Step 2: Select Draft Category</h2>
+            <p id="categoryInfoText">Choose what you want to draft!</p>
+        </div>
+        <div id="categoryGrid" class="category-grid"></div>
+        <div class="config-actions">
+            <button id="backToPlayersBtn" class="secondary-btn">← Back</button>
+        </div>
+    </div>
+
+    <!-- Step 3: Draft Settings (Rounds & Timer) -->
+    <div id="settingsScreen" class="config-screen" style="display: none;">
+        <div class="config-header">
+            <h2>⚙️ Step 3: Draft Settings</h2>
+            <p>Configure your draft preferences</p>
+        </div>
+        
+        <div class="config-content">
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">🔄</span>
+                    Number of Rounds (3-10)
+                </label>
+                <div class="config-control">
+                    <button class="config-btn decrement" id="decRounds">-</button>
+                    <span id="numRounds" class="config-value">5</span>
+                    <button class="config-btn increment" id="incRounds">+</button>
+                </div>
+                <div class="config-hint">Each player gets 1 pick per round</div>
+            </div>
+
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">⏱️</span>
+                    Time Per Pick (1-5 minutes)
+                </label>
+                <div class="config-control">
+                    <button class="config-btn decrement" id="decTime">-</button>
+                    <span id="timerMinutes" class="config-value">3</span>
+                    <button class="config-btn increment" id="incTime">+</button>
+                </div>
+                <div class="config-hint">Time limit for each player's pick</div>
+            </div>
+
+            <div class="config-card highlight">
+                <div class="config-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">📊 Players:</span>
+                        <span id="playerCountDisplay" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🏷️ Category:</span>
+                        <span id="categoryNameDisplay" class="stat-value">Not selected</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🔄 Rounds:</span>
+                        <span id="roundsCountDisplay" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">📦 Total Picks Needed:</span>
+                        <span id="totalPicksDisplay" class="stat-value">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">⏱️ Time Per Pick:</span>
+                        <span id="timeDisplay" class="stat-value">3 min</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button id="backToCategoryBtn" class="secondary-btn">← Back</button>
+            <button id="startDraftBtn" class="primary-btn">Start Snake Draft! 🐍</button>
+        </div>
+    </div>
+
+    <footer>🐍 Snake draft order reverses each round · Configurable timer per pick</footer>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="index.js"></script>
+</body>
+</html>
