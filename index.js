@@ -1,4 +1,15 @@
-const API_BASE_URL = '/api';
+// Determine if we're in development or production
+const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
+
+// Use localhost for development, Render URL for production
+const API_BASE_URL = isDevelopment 
+    ? 'http://localhost:3000/api'  // Local development
+    : 'https://draft-backend.onrender.com/api';  // Production on Render
+
+console.log(`API running in ${isDevelopment ? 'development' : 'production'} mode`);
+console.log(`API URL: ${API_BASE_URL}`);
+
 let numPlayers = 2;
 let numRounds = 5;
 let timerMinutes = 3;
@@ -9,7 +20,13 @@ let selectedCategoryCount = 0;
 // Load categories dynamically from database
 async function loadCategories() {
     try {
+        console.log(`Fetching categories from: ${API_BASE_URL}/categories`);
         const response = await fetch(`${API_BASE_URL}/categories`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.success && data.categories) {
@@ -21,7 +38,7 @@ async function loadCategories() {
     } catch (error) {
         console.error('Error loading categories:', error);
         updateDbStatus('❌ Connection Error', '#ef4444');
-        showToast('Could not connect to server. Make sure backend is running.', 3000);
+        showToast(`Could not connect to server: ${error.message}`, 5000);
     }
 }
 
@@ -101,7 +118,7 @@ function selectCategory(category, categoryName, itemCount) {
 }
 
 // Start the draft
-function startDraft() {
+async function startDraft() {
     const totalPicks = numPlayers * numRounds;
     
     if (totalPicks > selectedCategoryCount) {
@@ -109,18 +126,38 @@ function startDraft() {
         return;
     }
     
-    // Save draft configuration to localStorage
-    const draftConfig = {
-        numPlayers: numPlayers,
-        category: selectedCategory,
-        categoryName: selectedCategoryName,
-        numRounds: numRounds,
-        timerMinutes: timerMinutes
-    };
-    localStorage.setItem('draftConfig', JSON.stringify(draftConfig));
-    
-    // Redirect to draft page
-    window.location.href = 'draft.html';
+    // First, fetch items with scores for the selected category
+    try {
+        console.log(`Fetching items for category: ${selectedCategory}`);
+        const response = await fetch(`${API_BASE_URL}/items/${selectedCategory}/with-scores`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to fetch items: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.items) {
+            // Save draft configuration and items to localStorage
+            const draftConfig = {
+                numPlayers: numPlayers,
+                category: selectedCategory,
+                categoryName: selectedCategoryName,
+                numRounds: numRounds,
+                timerMinutes: timerMinutes,
+                items: data.items  // Save the items with scores
+            };
+            localStorage.setItem('draftConfig', JSON.stringify(draftConfig));
+            
+            // Redirect to draft page
+            window.location.href = 'draft.html';
+        } else {
+            showToast('Error loading items for draft', 3000);
+        }
+    } catch (error) {
+        console.error('Error starting draft:', error);
+        showToast(`Error: ${error.message}`, 3000);
+    }
 }
 
 function updateTotalPicksDisplay() {
