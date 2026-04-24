@@ -1,4 +1,15 @@
-const API_BASE_URL = '/api';
+// Determine if we're in development or production
+const isDevelopment = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1';
+
+// Use localhost for development, Render URL for production
+const API_BASE_URL = isDevelopment 
+    ? 'http://localhost:3000/api'  // Local development
+    : 'https://draft-backend-f40v.onrender.com/api';  // Production on Render
+
+console.log(`API running in ${isDevelopment ? 'development' : 'production'} mode`);
+console.log(`API URL: ${API_BASE_URL}`);
+
 let MASTER_ITEMS = [];
 let itemsWithScores = {};
 let availableItems = [];
