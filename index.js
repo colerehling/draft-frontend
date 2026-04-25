@@ -16,6 +16,7 @@ let timerMinutes = 3;
 let selectedCategory = null;
 let selectedCategoryName = null;
 let selectedCategoryCount = 0;
+let draftType = 'snake';  // NEW: 'snake' or 'regular'
 
 // Load categories dynamically from database
 async function loadCategories() {
@@ -30,10 +31,14 @@ async function loadCategories() {
         const data = await response.json();
         
         if (data.success && data.categories) {
+            // Only categories with live = 'yes' will be returned
             displayCategories(data.categories);
             updateDbStatus('✅ Ready', '#10b981');
+            
+            // Optional: Show how many categories are available
+            console.log(`${data.categories.length} active categories available`);
         } else {
-            throw new Error('No categories found');
+            throw new Error('No active categories found');
         }
     } catch (error) {
         console.error('Error loading categories:', error);
@@ -55,7 +60,8 @@ function getCategoryIcon(tableName) {
         'ice_cream_flavors': '🍦',
         'pizza_toppings': '🍕',
         'movie_genres': '🎬',
-        'vacation_destinations': '✈️'
+        'vacation_destinations': '✈️',
+        'sodas': '🥤'
     };
     return iconMap[tableName] || '📦';
 }
@@ -117,6 +123,17 @@ function selectCategory(category, categoryName, itemCount) {
     updateTotalPicksDisplay();
 }
 
+// Get selected draft type from radio buttons
+function getSelectedDraftType() {
+    const radios = document.querySelectorAll('input[name="draftType"]');
+    for (let radio of radios) {
+        if (radio.checked) {
+            return radio.value;
+        }
+    }
+    return 'snake'; // default
+}
+
 // Start the draft
 async function startDraft() {
     const totalPicks = numPlayers * numRounds;
@@ -125,6 +142,9 @@ async function startDraft() {
         showToast(`⚠️ Need ${totalPicks} items but only ${selectedCategoryCount} available. Reduce players or rounds.`, 4000);
         return;
     }
+    
+    // Get the selected draft type
+    const draftType = getSelectedDraftType();
     
     // First, fetch items with scores for the selected category
     try {
@@ -145,7 +165,8 @@ async function startDraft() {
                 categoryName: selectedCategoryName,
                 numRounds: numRounds,
                 timerMinutes: timerMinutes,
-                items: data.items  // Save the items with scores
+                draftType: draftType,  // NEW: Save the draft type
+                items: data.items
             };
             localStorage.setItem('draftConfig', JSON.stringify(draftConfig));
             

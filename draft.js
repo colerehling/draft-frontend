@@ -23,6 +23,7 @@ let timerMinutes = 3;
 let totalPicks = 0;
 let currentCategory = null;
 let currentCategoryName = '';
+let draftType = 'snake';  // NEW: 'snake' or 'regular'
 
 // Timer variables
 let timerInterval = null;
@@ -46,6 +47,7 @@ function loadDraftConfig() {
     currentCategoryName = parsed.categoryName;
     numRounds = parsed.numRounds;
     timerMinutes = parsed.timerMinutes || 3;
+    draftType = parsed.draftType || 'snake';  // NEW: Load draft type
     
     // Set timer duration in seconds
     TIMER_DURATION = timerMinutes * 60;
@@ -79,21 +81,52 @@ async function loadItems() {
     }
 }
 
-// Generate snake draft order
-function generateSnakeOrder() {
+// Generate draft order based on type (Snake or Regular)
+function generateDraftOrder() {
     const order = [];
-    for (let round = 1; round <= numRounds; round++) {
-        if (round % 2 === 1) {
+    
+    if (draftType === 'regular') {
+        // Regular draft - same order every round
+        for (let round = 1; round <= numRounds; round++) {
             for (let i = 0; i < numPlayers; i++) {
                 order.push({ playerIndex: i, round: round });
             }
-        } else {
-            for (let i = numPlayers - 1; i >= 0; i--) {
-                order.push({ playerIndex: i, round: round });
+        }
+    } else {
+        // Snake draft - alternating order
+        for (let round = 1; round <= numRounds; round++) {
+            if (round % 2 === 1) {
+                // Odd rounds: Player 1,2,3...
+                for (let i = 0; i < numPlayers; i++) {
+                    order.push({ playerIndex: i, round: round });
+                }
+            } else {
+                // Even rounds: Player 3,2,1...
+                for (let i = numPlayers - 1; i >= 0; i--) {
+                    order.push({ playerIndex: i, round: round });
+                }
             }
         }
     }
+    
     return order;
+}
+
+// Update the header to show draft type
+function updateDraftTypeHeader() {
+    const draftTypeHeader = document.getElementById('draftTypeHeader');
+    const draftTypeIcon = document.getElementById('draftTypeIcon');
+    const draftTypeName = document.getElementById('draftTypeName');
+    
+    if (draftType === 'snake') {
+        if (draftTypeHeader) draftTypeHeader.innerHTML = '🐍 Snake draft · Reverses each round · Timed picks';
+        if (draftTypeIcon) draftTypeIcon.textContent = '🐍';
+        if (draftTypeName) draftTypeName.textContent = 'SNAKE DRAFT MODE';
+    } else {
+        if (draftTypeHeader) draftTypeHeader.innerHTML = '📋 Regular draft · Same order each round · Timed picks';
+        if (draftTypeIcon) draftTypeIcon.textContent = '📋';
+        if (draftTypeName) draftTypeName.textContent = 'REGULAR DRAFT MODE';
+    }
 }
 
 // Start the draft
@@ -105,7 +138,7 @@ function startDraft() {
     }
     
     totalPicks = numPlayers * numRounds;
-    draftOrder = generateSnakeOrder();
+    draftOrder = generateDraftOrder();  // UPDATED: Use new function
     currentPickIndex = 0;
     currentRound = 1;
     
@@ -115,7 +148,11 @@ function startDraft() {
     
     document.getElementById('categoryTitle').innerHTML = '📦 ' + currentCategoryName;
     
-    showToast('🐍 Snake draft started! ' + numPlayers + ' players, ' + numRounds + ' rounds. ' + timerMinutes + ' minutes per pick. Player 1 picks first!');
+    // Update the header to show draft type
+    updateDraftTypeHeader();
+    
+    const draftTypeName = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+    showToast(`${draftTypeName} draft started! ${numPlayers} players, ${numRounds} rounds. ${timerMinutes} minutes per pick. Player 1 picks first!`);
     
     startTimer();
 }

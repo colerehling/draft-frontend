@@ -794,3 +794,53 @@ footer {
     padding: 0.8rem;
   }
 }
+
+/* Draft Type Selector Styles */
+.draft-type-options {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.draft-type-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    min-width: 180px;
+    border: 2px solid transparent;
+}
+
+.draft-type-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+input[name="draftType"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #10b981;
+}
+
+.draft-type-icon {
+    font-size: 24px;
+}
+
+.draft-type-name {
+    font-weight: 600;
+    color: #facc15;
+    font-size: 16px;
+}
+
+.draft-type-desc {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-left: auto;
+}

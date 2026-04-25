@@ -10,8 +10,8 @@
 <div class="draft-app">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
-            <h1>SNAKE DRAFT</h1>
-            <div class="sub">Multiplayer snake draft · Timed picks · 2-8 players</div>
+            <h1>DRAFT GAME</h1>
+            <div class="sub">Multiplayer draft · Timed picks · 2-8 players</div>
         </div>
         <div class="badge" id="dbStatus">🔄 Connecting...</div>
     </div>
@@ -55,7 +55,7 @@
         </div>
     </div>
 
-    <!-- Step 3: Draft Settings (Rounds & Timer) -->
+    <!-- Step 3: Draft Settings (Rounds, Timer & Draft Type) -->
     <div id="settingsScreen" class="config-screen" style="display: none;">
         <div class="config-header">
             <h2>⚙️ Step 3: Draft Settings</h2>
@@ -89,6 +89,28 @@
                 <div class="config-hint">Time limit for each player's pick</div>
             </div>
 
+            <!-- NEW: Draft Type Selection -->
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">🎲</span>
+                    Draft Type
+                </label>
+                <div class="draft-type-options">
+                    <label class="draft-type-option">
+                        <input type="radio" name="draftType" value="snake" checked>
+                        <span class="draft-type-icon">🐍</span>
+                        <span class="draft-type-name">Snake Draft</span>
+                        <span class="draft-type-desc">1,2,3,3,2,1,1,2,3...</span>
+                    </label>
+                    <label class="draft-type-option">
+                        <input type="radio" name="draftType" value="regular">
+                        <span class="draft-type-icon">📋</span>
+                        <span class="draft-type-name">Regular Draft</span>
+                        <span class="draft-type-desc">1,2,3,1,2,3,1,2,3...</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="config-card highlight">
                 <div class="config-stats">
                     <div class="stat-item">
@@ -117,11 +139,11 @@
 
         <div class="config-actions">
             <button id="backToCategoryBtn" class="secondary-btn">← Back</button>
-            <button id="startDraftBtn" class="primary-btn">Start Snake Draft! 🐍</button>
+            <button id="startDraftBtn" class="primary-btn">Start Draft! 🎲</button>
         </div>
     </div>
 
-    <footer>🐍 Snake draft order reverses each round · Configurable timer per pick</footer>
+    <footer>🎲 Choose between Snake or Regular draft · Configurable timer per pick</footer>
 </div>
 <div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
 
