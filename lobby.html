@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Draft - Lobby</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="draft-app">
+    <h1>🎮 MULTIPLAYER DRAFT</h1>
+    <div class="sub">Play with friends from anywhere!</div>
+
+    <div class="lobby-container">
+        <!-- Create Game Section -->
+        <div class="lobby-card">
+            <h2>🎲 Create New Game</h2>
+            <button id="createGameBtn" class="primary-btn">Create Game</button>
+        </div>
+
+        <!-- Join Game Section -->
+        <div class="lobby-card">
+            <h2>🔗 Join Existing Game</h2>
+            <input type="text" id="roomCodeInput" placeholder="Enter 6-character code" maxlength="6" class="room-input">
+            <button id="joinGameBtn" class="primary-btn">Join Game</button>
+        </div>
+    </div>
+
+    <div id="waitingRoom" style="display: none;">
+        <h2>🏠 Game Room: <span id="roomCodeDisplay"></span></h2>
+        <div class="players-list" id="playersList"></div>
+        <div class="config-display" id="configDisplay"></div>
+        <button id="startDraftBtn" class="primary-btn" style="display: none;">Start Draft</button>
+        <div id="readyStatus"></div>
+    </div>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script src="multiplayer.js"></script>
+</body>
+</html>

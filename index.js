@@ -10,15 +10,291 @@ const API_BASE_URL = isDevelopment
 console.log(`API running in ${isDevelopment ? 'development' : 'production'} mode`);
 console.log(`API URL: ${API_BASE_URL}`);
 
+// Socket.IO connection (for online play)
+let socket = null;
+let isHost = false;
+let currentRoomCode = null;
+let gameMode = 'local'; // 'local' or 'online'
+
+// Game configuration variables
 let numPlayers = 2;
 let numRounds = 5;
 let timerMinutes = 3;
 let selectedCategory = null;
 let selectedCategoryName = null;
 let selectedCategoryCount = 0;
-let draftType = 'snake';  // NEW: 'snake' or 'regular'
+let draftType = 'snake';
 
-// Load categories dynamically from database
+// DOM Elements
+const hostJoinScreen = document.getElementById('hostJoinScreen');
+const hostSettingsScreen = document.getElementById('hostSettingsScreen');
+const joinSettingsScreen = document.getElementById('joinSettingsScreen');
+const categoryScreen = document.getElementById('categoryScreen');
+const settingsScreen = document.getElementById('settingsScreen');
+const waitingRoom = document.getElementById('waitingRoom');
+
+// Host/Join Selection
+const hostOption = document.getElementById('hostOption');
+const joinOption = document.getElementById('joinOption');
+const backToHostJoinBtn = document.getElementById('backToHostJoinBtn');
+const backToHostJoinJoinBtn = document.getElementById('backToHostJoinJoinBtn');
+
+// Host Settings
+const decPlayersHost = document.getElementById('decPlayersHost');
+const incPlayersHost = document.getElementById('incPlayersHost');
+const numPlayersHostSpan = document.getElementById('numPlayersHost');
+const continueToCategoryBtn = document.getElementById('continueToCategoryBtn');
+
+// Join Settings
+const roomCodeInput = document.getElementById('roomCodeInput');
+const playerNameInput = document.getElementById('playerNameInput');
+const joinGameBtn = document.getElementById('joinGameBtn');
+
+// Waiting Room
+const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+const copyRoomCodeBtn = document.getElementById('copyRoomCodeBtn');
+const playersListDiv = document.getElementById('playersList');
+const playerCountSpan = document.getElementById('playerCount');
+const maxPlayersSpan = document.getElementById('maxPlayers');
+const cancelHostGameBtn = document.getElementById('cancelHostGameBtn');
+const startGameBtn = document.getElementById('startGameBtn');
+const readyStatusDiv = document.getElementById('readyStatus');
+
+// Navigation
+const backToSettingsBtn = document.getElementById('backToSettingsBtn');
+const backToCategoryBtn = document.getElementById('backToCategoryBtn');
+const startDraftBtn = document.getElementById('startDraftBtn');
+
+// ==================== STEP 1: Host or Join Selection ====================
+
+hostOption.addEventListener('click', () => {
+    isHost = true;
+    gameMode = 'online';
+    hostJoinScreen.style.display = 'none';
+    hostSettingsScreen.style.display = 'block';
+});
+
+joinOption.addEventListener('click', () => {
+    isHost = false;
+    gameMode = 'online';
+    hostJoinScreen.style.display = 'none';
+    joinSettingsScreen.style.display = 'block';
+});
+
+backToHostJoinBtn.addEventListener('click', () => {
+    hostSettingsScreen.style.display = 'none';
+    hostJoinScreen.style.display = 'block';
+});
+
+backToHostJoinJoinBtn.addEventListener('click', () => {
+    joinSettingsScreen.style.display = 'none';
+    hostJoinScreen.style.display = 'block';
+});
+
+// ==================== Host Settings ====================
+
+if (decPlayersHost && incPlayersHost && numPlayersHostSpan) {
+    decPlayersHost.addEventListener('click', () => {
+        if (numPlayers > 2) {
+            numPlayers--;
+            numPlayersHostSpan.textContent = numPlayers;
+            updateTotalPicksDisplay();
+        }
+    });
+    
+    incPlayersHost.addEventListener('click', () => {
+        if (numPlayers < 8) {
+            numPlayers++;
+            numPlayersHostSpan.textContent = numPlayers;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+// Get selected game mode (local/online)
+function getSelectedGameMode() {
+    const radios = document.querySelectorAll('input[name="gameMode"]');
+    for (let radio of radios) {
+        if (radio.checked) {
+            return radio.value;
+        }
+    }
+    return 'local';
+}
+
+continueToCategoryBtn.addEventListener('click', () => {
+    // Get game mode from selected radio
+    gameMode = getSelectedGameMode();
+    
+    if (gameMode === 'online' && isHost) {
+        // Initialize Socket.IO connection
+        initSocketConnection();
+        createGameRoom();
+    } else if (gameMode === 'local') {
+        // Local game - go directly to category selection
+        hostSettingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+        loadCategories();
+    } else {
+        hostSettingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+        loadCategories();
+    }
+});
+
+// ==================== Join Game ====================
+
+joinGameBtn.addEventListener('click', () => {
+    const roomCode = roomCodeInput.value.toUpperCase();
+    const playerName = playerNameInput.value.trim();
+    
+    if (!roomCode || roomCode.length !== 6) {
+        showToast('Please enter a valid 6-character room code', 3000);
+        return;
+    }
+    
+    if (!playerName) {
+        showToast('Please enter your name', 3000);
+        return;
+    }
+    
+    initSocketConnection();
+    
+    socket.emit('joinGame', { roomCode, playerName }, (response) => {
+        if (response.success) {
+            currentRoomCode = response.roomCode;
+            showToast('Joined game! Waiting for host to start...', 2000);
+            
+            // For joiners, we don't need to select category or settings
+            // Just wait for the host to start the draft
+            joinSettingsScreen.style.display = 'none';
+            waitingRoom.style.display = 'block';
+            
+            // Show waiting UI
+            showWaitingRoomForJoiner();
+        } else {
+            showToast(response.error, 3000);
+        }
+    });
+});
+
+// ==================== Socket.IO Functions ====================
+
+function initSocketConnection() {
+    const serverUrl = isDevelopment ? 'http://localhost:3000' : 'https://draft-backend-f40v.onrender.com';
+    socket = io(serverUrl);
+    
+    socket.on('connect', () => {
+        console.log('Connected to server');
+    });
+    
+    socket.on('playerJoined', (players) => {
+        updatePlayersList(players);
+    });
+    
+    socket.on('playerLeft', (players) => {
+        updatePlayersList(players);
+        showToast('A player left the game', 2000);
+    });
+    
+    socket.on('playerReadyUpdate', (players) => {
+        updatePlayersList(players);
+    });
+    
+    socket.on('allPlayersReady', () => {
+        if (isHost) {
+            startGameBtn.style.display = 'block';
+            showToast('All players ready! Start the draft!');
+        }
+    });
+    
+    socket.on('draftStarted', (draftState) => {
+        // Save draft state and redirect
+        localStorage.setItem('multiplayerDraft', JSON.stringify({
+            isMultiplayer: true,
+            roomCode: currentRoomCode,
+            isHost: isHost,
+            draftState: draftState
+        }));
+        window.location.href = 'multiplayer-draft.html';
+    });
+    
+    socket.on('error', (error) => {
+        showToast(error, 3000);
+    });
+}
+
+function createGameRoom() {
+    const gameConfig = {
+        numPlayers: numPlayers,
+        category: selectedCategory,
+        categoryName: selectedCategoryName,
+        numRounds: numRounds,
+        timerMinutes: timerMinutes,
+        draftType: draftType,
+        playerName: 'Host'
+    };
+    
+    socket.emit('createGame', gameConfig, (response) => {
+        if (response.success) {
+            currentRoomCode = response.roomCode;
+            roomCodeDisplay.textContent = currentRoomCode;
+            maxPlayersSpan.textContent = numPlayers;
+            
+            hostSettingsScreen.style.display = 'none';
+            waitingRoom.style.display = 'block';
+            
+            copyRoomCodeBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(currentRoomCode);
+                showToast('Room code copied!', 1500);
+            });
+            
+            cancelHostGameBtn.addEventListener('click', () => {
+                window.location.reload();
+            });
+            
+            startGameBtn.addEventListener('click', () => {
+                socket.emit('startDraft', currentRoomCode);
+            });
+        }
+    });
+}
+
+function updatePlayersList(players) {
+    playersListDiv.innerHTML = '';
+    players.forEach((player, index) => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-item';
+        playerDiv.innerHTML = `
+            <span>${getPlayerIcon(index)} ${player.name}</span>
+            <span class="ready-status">${player.isReady ? '✓ Ready' : '⏳ Waiting...'}</span>
+        `;
+        playersListDiv.appendChild(playerDiv);
+    });
+    playerCountSpan.textContent = players.length;
+}
+
+function showWaitingRoomForJoiner() {
+    // Show ready button for joiners
+    const readyBtn = document.createElement('button');
+    readyBtn.className = 'primary-btn';
+    readyBtn.textContent = 'I\'m Ready';
+    readyBtn.addEventListener('click', () => {
+        socket.emit('playerReady', currentRoomCode);
+        readyBtn.disabled = true;
+        readyBtn.textContent = '✓ Ready!';
+    });
+    readyStatusDiv.innerHTML = '';
+    readyStatusDiv.appendChild(readyBtn);
+}
+
+function getPlayerIcon(index) {
+    const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
+    return icons[index % icons.length];
+}
+
+// ==================== Category Selection (Step 3) ====================
+
 async function loadCategories() {
     try {
         console.log(`Fetching categories from: ${API_BASE_URL}/categories`);
@@ -31,12 +307,8 @@ async function loadCategories() {
         const data = await response.json();
         
         if (data.success && data.categories) {
-            // Only categories with live = 'yes' will be returned
             displayCategories(data.categories);
             updateDbStatus('✅ Ready', '#10b981');
-            
-            // Optional: Show how many categories are available
-            console.log(`${data.categories.length} active categories available`);
         } else {
             throw new Error('No active categories found');
         }
@@ -47,26 +319,22 @@ async function loadCategories() {
     }
 }
 
-// Format category name: replace underscores with spaces and capitalize words
 function formatCategoryName(tableName) {
     return tableName.replace(/_/g, ' ').split(' ').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     ).join(' ');
 }
 
-// Get icon based on category name
 function getCategoryIcon(tableName) {
     const iconMap = {
         'ice_cream_flavors': '🍦',
         'pizza_toppings': '🍕',
         'movie_genres': '🎬',
-        'vacation_destinations': '✈️',
-        'sodas': '🥤'
+        'vacation_destinations': '✈️'
     };
     return iconMap[tableName] || '📦';
 }
 
-// Display category cards
 function displayCategories(categories) {
     const categoryGrid = document.getElementById('categoryGrid');
     if (!categoryGrid) return;
@@ -105,7 +373,6 @@ function displayCategories(categories) {
     });
 }
 
-// Select category and go to settings
 function selectCategory(category, categoryName, itemCount) {
     selectedCategory = category;
     selectedCategoryName = categoryName;
@@ -113,17 +380,22 @@ function selectCategory(category, categoryName, itemCount) {
     
     // Update display in settings screen
     const categoryNameDisplay = document.getElementById('categoryNameDisplay');
+    const gameModeDisplay = document.getElementById('gameModeDisplay');
     if (categoryNameDisplay) {
         categoryNameDisplay.textContent = categoryName;
     }
+    if (gameModeDisplay) {
+        gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
+    }
     
-    // Go to settings screen
-    document.getElementById('categoryScreen').style.display = 'none';
-    document.getElementById('settingsScreen').style.display = 'block';
+    // Go to settings screen (Step 4)
+    categoryScreen.style.display = 'none';
+    settingsScreen.style.display = 'block';
     updateTotalPicksDisplay();
 }
 
-// Get selected draft type from radio buttons
+// ==================== Draft Settings (Step 4) ====================
+
 function getSelectedDraftType() {
     const radios = document.querySelectorAll('input[name="draftType"]');
     for (let radio of radios) {
@@ -131,10 +403,9 @@ function getSelectedDraftType() {
             return radio.value;
         }
     }
-    return 'snake'; // default
+    return 'snake';
 }
 
-// Start the draft
 async function startDraft() {
     const totalPicks = numPlayers * numRounds;
     
@@ -143,10 +414,26 @@ async function startDraft() {
         return;
     }
     
-    // Get the selected draft type
     const draftType = getSelectedDraftType();
     
-    // First, fetch items with scores for the selected category
+    // If online game as host, we need to wait for all players to join
+    if (gameMode === 'online' && isHost) {
+        // The draft will be started from the waiting room
+        // Save config and wait
+        const gameConfig = {
+            numPlayers: numPlayers,
+            category: selectedCategory,
+            categoryName: selectedCategoryName,
+            numRounds: numRounds,
+            timerMinutes: timerMinutes,
+            draftType: draftType
+        };
+        
+        localStorage.setItem('draftConfig', JSON.stringify(gameConfig));
+        return;
+    }
+    
+    // Local game or joiner - proceed normally
     try {
         console.log(`Fetching items for category: ${selectedCategory}`);
         const response = await fetch(`${API_BASE_URL}/items/${selectedCategory}/with-scores`);
@@ -158,19 +445,17 @@ async function startDraft() {
         const data = await response.json();
         
         if (data.success && data.items) {
-            // Save draft configuration and items to localStorage
             const draftConfig = {
                 numPlayers: numPlayers,
                 category: selectedCategory,
                 categoryName: selectedCategoryName,
                 numRounds: numRounds,
                 timerMinutes: timerMinutes,
-                draftType: draftType,  // NEW: Save the draft type
-                items: data.items
+                draftType: draftType,
+                items: data.items,
+                gameMode: gameMode
             };
             localStorage.setItem('draftConfig', JSON.stringify(draftConfig));
-            
-            // Redirect to draft page
             window.location.href = 'draft.html';
         } else {
             showToast('Error loading items for draft', 3000);
@@ -183,19 +468,89 @@ async function startDraft() {
 
 function updateTotalPicksDisplay() {
     const totalPicks = numPlayers * numRounds;
-    const playerCountDisplay = document.getElementById('playerCountDisplay');
-    const roundsCountDisplay = document.getElementById('roundsCountDisplay');
-    const totalPicksDisplay = document.getElementById('totalPicksDisplay');
-    const timeDisplay = document.getElementById('timeDisplay');
-    const categoryNameDisplay = document.getElementById('categoryNameDisplay');
+    const elements = {
+        playerCountDisplay: document.getElementById('playerCountDisplay'),
+        roundsCountDisplay: document.getElementById('roundsCountDisplay'),
+        totalPicksDisplay: document.getElementById('totalPicksDisplay'),
+        timeDisplay: document.getElementById('timeDisplay'),
+        categoryNameDisplay: document.getElementById('categoryNameDisplay'),
+        gameModeDisplay: document.getElementById('gameModeDisplay')
+    };
     
-    if (playerCountDisplay) playerCountDisplay.textContent = numPlayers;
-    if (roundsCountDisplay) roundsCountDisplay.textContent = numRounds;
-    if (totalPicksDisplay) totalPicksDisplay.textContent = totalPicks;
-    if (timeDisplay) timeDisplay.textContent = timerMinutes + ' min';
-    if (categoryNameDisplay && selectedCategoryName) {
-        categoryNameDisplay.textContent = selectedCategoryName;
+    if (elements.playerCountDisplay) elements.playerCountDisplay.textContent = numPlayers;
+    if (elements.roundsCountDisplay) elements.roundsCountDisplay.textContent = numRounds;
+    if (elements.totalPicksDisplay) elements.totalPicksDisplay.textContent = totalPicks;
+    if (elements.timeDisplay) elements.timeDisplay.textContent = timerMinutes + ' min';
+    if (elements.categoryNameDisplay && selectedCategoryName) {
+        elements.categoryNameDisplay.textContent = selectedCategoryName;
     }
+    if (elements.gameModeDisplay) {
+        elements.gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
+    }
+}
+
+// ==================== Navigation ====================
+
+backToSettingsBtn.addEventListener('click', () => {
+    settingsScreen.style.display = 'none';
+    categoryScreen.style.display = 'block';
+});
+
+backToCategoryBtn.addEventListener('click', () => {
+    settingsScreen.style.display = 'none';
+    categoryScreen.style.display = 'block';
+});
+
+startDraftBtn.addEventListener('click', () => {
+    startDraft();
+});
+
+// Rounds controls
+const decRounds = document.getElementById('decRounds');
+const incRounds = document.getElementById('incRounds');
+const numRoundsSpan = document.getElementById('numRounds');
+const decTime = document.getElementById('decTime');
+const incTime = document.getElementById('incTime');
+const timerMinutesSpan = document.getElementById('timerMinutes');
+
+if (decRounds) {
+    decRounds.addEventListener('click', () => {
+        if (numRounds > 3) {
+            numRounds--;
+            numRoundsSpan.textContent = numRounds;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+if (incRounds) {
+    incRounds.addEventListener('click', () => {
+        if (numRounds < 10) {
+            numRounds++;
+            numRoundsSpan.textContent = numRounds;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+if (decTime) {
+    decTime.addEventListener('click', () => {
+        if (timerMinutes > 1) {
+            timerMinutes--;
+            timerMinutesSpan.textContent = timerMinutes;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+if (incTime) {
+    incTime.addEventListener('click', () => {
+        if (timerMinutes < 5) {
+            timerMinutes++;
+            timerMinutesSpan.textContent = timerMinutes;
+            updateTotalPicksDisplay();
+        }
+    });
 }
 
 function showToast(message, duration = 2200) {
@@ -217,129 +572,16 @@ function updateDbStatus(message, color = '#facc15') {
     }
 }
 
-function setupConfiguration() {
-    // Get all DOM elements
-    const decPlayers = document.getElementById('decPlayers');
-    const incPlayers = document.getElementById('incPlayers');
-    const numPlayersSpan = document.getElementById('numPlayers');
-    
-    const decRounds = document.getElementById('decRounds');
-    const incRounds = document.getElementById('incRounds');
-    const numRoundsSpan = document.getElementById('numRounds');
-    
-    const decTime = document.getElementById('decTime');
-    const incTime = document.getElementById('incTime');
-    const timerMinutesSpan = document.getElementById('timerMinutes');
-    
-    // Navigation buttons
-    const continueToCategoryBtn = document.getElementById('continueToCategoryBtn');
-    const backToPlayersBtn = document.getElementById('backToPlayersBtn');
-    const backToCategoryBtn = document.getElementById('backToCategoryBtn');
-    const startDraftBtn = document.getElementById('startDraftBtn');
-    
-    // Player count controls
-    if (decPlayers) {
-        decPlayers.addEventListener('click', () => {
-            if (numPlayers > 2) {
-                numPlayers--;
-                numPlayersSpan.textContent = numPlayers;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    if (incPlayers) {
-        incPlayers.addEventListener('click', () => {
-            if (numPlayers < 8) {
-                numPlayers++;
-                numPlayersSpan.textContent = numPlayers;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    // Rounds controls
-    if (decRounds) {
-        decRounds.addEventListener('click', () => {
-            if (numRounds > 3) {
-                numRounds--;
-                numRoundsSpan.textContent = numRounds;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    if (incRounds) {
-        incRounds.addEventListener('click', () => {
-            if (numRounds < 10) {
-                numRounds++;
-                numRoundsSpan.textContent = numRounds;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    // Timer controls (1-5 minutes)
-    if (decTime) {
-        decTime.addEventListener('click', () => {
-            if (timerMinutes > 1) {
-                timerMinutes--;
-                timerMinutesSpan.textContent = timerMinutes;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    if (incTime) {
-        incTime.addEventListener('click', () => {
-            if (timerMinutes < 5) {
-                timerMinutes++;
-                timerMinutesSpan.textContent = timerMinutes;
-                updateTotalPicksDisplay();
-            }
-        });
-    }
-    
-    // Navigation - Go to category selection
-    if (continueToCategoryBtn) {
-        continueToCategoryBtn.addEventListener('click', () => {
-            document.getElementById('playerCountScreen').style.display = 'none';
-            document.getElementById('categoryScreen').style.display = 'block';
-            loadCategories();
-        });
-    }
-    
-    // Back to player count from category
-    if (backToPlayersBtn) {
-        backToPlayersBtn.addEventListener('click', () => {
-            document.getElementById('categoryScreen').style.display = 'none';
-            document.getElementById('playerCountScreen').style.display = 'block';
-        });
-    }
-    
-    // Back to category from settings
-    if (backToCategoryBtn) {
-        backToCategoryBtn.addEventListener('click', () => {
-            document.getElementById('settingsScreen').style.display = 'none';
-            document.getElementById('categoryScreen').style.display = 'block';
-        });
-    }
-    
-    // Start draft from settings
-    if (startDraftBtn) {
-        startDraftBtn.addEventListener('click', () => {
-            startDraft();
-        });
-    }
-}
-
+// Initialize - show host/join screen first
 function init() {
-    setupConfiguration();
+    hostJoinScreen.style.display = 'block';
+    hostSettingsScreen.style.display = 'none';
+    joinSettingsScreen.style.display = 'none';
+    categoryScreen.style.display = 'none';
+    settingsScreen.style.display = 'none';
+    waitingRoom.style.display = 'none';
+    
     updateTotalPicksDisplay();
-    // Make sure the player count screen is visible initially
-    document.getElementById('playerCountScreen').style.display = 'block';
-    document.getElementById('categoryScreen').style.display = 'none';
-    document.getElementById('settingsScreen').style.display = 'none';
 }
 
 document.addEventListener('DOMContentLoaded', () => {

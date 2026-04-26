@@ -16,49 +16,129 @@
         <div class="badge" id="dbStatus">🔄 Connecting...</div>
     </div>
 
-    <!-- Step 1: Player Count Selection -->
-    <div id="playerCountScreen" class="config-screen">
+    <!-- STEP 1: Host or Join Selection -->
+    <div id="hostJoinScreen" class="config-screen">
         <div class="config-header">
-            <h2>👥 Step 1: Number of Players</h2>
-            <p>How many players will be drafting?</p>
+            <h2>🎮 Step 1: Host or Join a Draft</h2>
+            <p>Choose how you want to play</p>
+        </div>
+        
+        <div class="host-join-options">
+            <div class="host-join-card" id="hostOption">
+                <div class="host-join-icon">👑</div>
+                <h3>Host a Draft</h3>
+                <p>Create a new draft game and invite friends to join</p>
+                <div class="host-join-note">You'll get a room code to share</div>
+            </div>
+            
+            <div class="host-join-card" id="joinOption">
+                <div class="host-join-icon">🔗</div>
+                <h3>Join a Draft</h3>
+                <p>Enter a room code to join an existing draft</p>
+                <div class="host-join-note">Ask the host for the room code</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STEP 2: Connection Settings (Host or Join) -->
+    <!-- Host Settings -->
+    <div id="hostSettingsScreen" class="config-screen" style="display: none;">
+        <div class="config-header">
+            <h2>👑 Step 2: Host Settings</h2>
+            <p>Configure your draft game</p>
         </div>
         
         <div class="config-content">
             <div class="config-card">
                 <label class="config-label">
                     <span class="label-icon">👥</span>
-                    Players (2-8)
+                    Game Mode
+                </label>
+                <div class="game-mode-options">
+                    <label class="game-mode-option">
+                        <input type="radio" name="gameMode" value="local" checked>
+                        <span class="mode-icon">🖥️</span>
+                        <span class="mode-name">Local Game</span>
+                        <span class="mode-desc">All players on same device</span>
+                    </label>
+                    <label class="game-mode-option">
+                        <input type="radio" name="gameMode" value="online">
+                        <span class="mode-icon">🌐</span>
+                        <span class="mode-name">Online Game</span>
+                        <span class="mode-desc">Play with friends remotely</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">👥</span>
+                    Number of Players (2-8)
                 </label>
                 <div class="config-control">
-                    <button class="config-btn decrement" id="decPlayers">-</button>
-                    <span id="numPlayers" class="config-value">2</span>
-                    <button class="config-btn increment" id="incPlayers">+</button>
+                    <button class="config-btn decrement" id="decPlayersHost">-</button>
+                    <span id="numPlayersHost" class="config-value">2</span>
+                    <button class="config-btn increment" id="incPlayersHost">+</button>
                 </div>
-                <div class="config-hint">More players = longer draft</div>
+                <div class="config-hint">Total players including host</div>
             </div>
         </div>
 
         <div class="config-actions">
+            <button id="backToHostJoinBtn" class="secondary-btn">← Back</button>
             <button id="continueToCategoryBtn" class="primary-btn">Next: Choose Category →</button>
         </div>
     </div>
 
-    <!-- Step 2: Category Selection -->
+    <!-- Join Settings -->
+    <div id="joinSettingsScreen" class="config-screen" style="display: none;">
+        <div class="config-header">
+            <h2>🔗 Step 2: Join a Game</h2>
+            <p>Enter the room code to join an existing draft</p>
+        </div>
+        
+        <div class="config-content">
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">🔑</span>
+                    Room Code
+                </label>
+                <input type="text" id="roomCodeInput" placeholder="Enter 6-character code" maxlength="6" class="room-code-input">
+                <div class="config-hint">Get the code from the game host</div>
+            </div>
+
+            <div class="config-card">
+                <label class="config-label">
+                    <span class="label-icon">👤</span>
+                    Your Name
+                </label>
+                <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="20" class="player-name-input">
+                <div class="config-hint">How other players will see you</div>
+            </div>
+        </div>
+
+        <div class="config-actions">
+            <button id="backToHostJoinJoinBtn" class="secondary-btn">← Back</button>
+            <button id="joinGameBtn" class="primary-btn">Join Game →</button>
+        </div>
+    </div>
+
+    <!-- STEP 3: Category Selection (renamed from Step 2) -->
     <div id="categoryScreen" class="config-screen" style="display: none;">
         <div class="config-header">
-            <h2>🎯 Step 2: Select Draft Category</h2>
+            <h2>🎯 Step 3: Select Draft Category</h2>
             <p id="categoryInfoText">Choose what you want to draft!</p>
         </div>
         <div id="categoryGrid" class="category-grid"></div>
         <div class="config-actions">
-            <button id="backToPlayersBtn" class="secondary-btn">← Back</button>
+            <button id="backToSettingsBtn" class="secondary-btn">← Back</button>
         </div>
     </div>
 
-    <!-- Step 3: Draft Settings (Rounds, Timer & Draft Type) -->
+    <!-- STEP 4: Draft Settings (renamed from Step 3) -->
     <div id="settingsScreen" class="config-screen" style="display: none;">
         <div class="config-header">
-            <h2>⚙️ Step 3: Draft Settings</h2>
+            <h2>⚙️ Step 4: Draft Settings</h2>
             <p>Configure your draft preferences</p>
         </div>
         
@@ -89,7 +169,6 @@
                 <div class="config-hint">Time limit for each player's pick</div>
             </div>
 
-            <!-- NEW: Draft Type Selection -->
             <div class="config-card">
                 <label class="config-label">
                     <span class="label-icon">🎲</span>
@@ -133,6 +212,10 @@
                         <span class="stat-label">⏱️ Time Per Pick:</span>
                         <span id="timeDisplay" class="stat-value">3 min</span>
                     </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🎮 Game Mode:</span>
+                        <span id="gameModeDisplay" class="stat-value">Local</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -143,10 +226,38 @@
         </div>
     </div>
 
+    <!-- Waiting Room for Online Games -->
+    <div id="waitingRoom" class="config-screen" style="display: none;">
+        <div class="config-header">
+            <h2>🏠 Waiting for Players</h2>
+            <p>Share this code with friends to join</p>
+        </div>
+        
+        <div class="waiting-room-content">
+            <div class="room-code-box">
+                <span class="room-code-label">Room Code:</span>
+                <span id="roomCodeDisplay" class="room-code-value"></span>
+                <button id="copyRoomCodeBtn" class="copy-btn">📋 Copy</button>
+            </div>
+            
+            <div class="players-list-container">
+                <h3>Players (<span id="playerCount">0</span>/<span id="maxPlayers">0</span>)</h3>
+                <div id="playersList" class="players-list"></div>
+            </div>
+            
+            <div class="waiting-actions">
+                <button id="cancelHostGameBtn" class="secondary-btn">Cancel</button>
+                <button id="startGameBtn" class="primary-btn" style="display: none;">Start Game</button>
+            </div>
+            <div id="readyStatus" class="ready-status"></div>
+        </div>
+    </div>
+
     <footer>🎲 Choose between Snake or Regular draft · Configurable timer per pick</footer>
 </div>
 <div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
 
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 <script src="index.js"></script>
 </body>
 </html>
