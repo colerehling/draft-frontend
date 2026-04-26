@@ -17,7 +17,7 @@ let currentRoomCode = null;
 let gameMode = 'local';
 let playersAreReady = false;
 
-// Game configuration variables
+// Game configuration variables - these will be set by the unified host screen
 let numPlayers = 2;
 let numRounds = 5;
 let timerMinutes = 3;
@@ -26,11 +26,6 @@ let selectedCategoryName = null;
 let selectedCategoryCount = 0;
 let draftType = 'snake';
 
-// Store category temporarily when navigating
-let tempCategory = null;
-let tempCategoryName = null;
-let tempCategoryCount = 0;
-
 // DOM Elements
 const hostJoinScreen = document.getElementById('hostJoinScreen');
 const hostSettingsScreen = document.getElementById('hostSettingsScreen');
@@ -38,21 +33,36 @@ const joinSettingsScreen = document.getElementById('joinSettingsScreen');
 const categoryScreen = document.getElementById('categoryScreen');
 const settingsScreen = document.getElementById('settingsScreen');
 const waitingRoom = document.getElementById('waitingRoom');
+const resultsScreen = document.getElementById('resultsScreen');
 
 const hostOption = document.getElementById('hostOption');
 const joinOption = document.getElementById('joinOption');
 const backToHostJoinBtn = document.getElementById('backToHostJoinBtn');
 const backToHostJoinJoinBtn = document.getElementById('backToHostJoinJoinBtn');
 
+// Host Settings Elements (Unified)
 const decPlayersHost = document.getElementById('decPlayersHost');
 const incPlayersHost = document.getElementById('incPlayersHost');
 const numPlayersHostSpan = document.getElementById('numPlayersHost');
-const continueToCategoryBtn = document.getElementById('continueToCategoryBtn');
+const decRoundsHost = document.getElementById('decRoundsHost');
+const incRoundsHost = document.getElementById('incRoundsHost');
+const numRoundsHostSpan = document.getElementById('numRoundsHost');
+const decTimeHost = document.getElementById('decTimeHost');
+const incTimeHost = document.getElementById('incTimeHost');
+const timerMinutesHostSpan = document.getElementById('timerMinutesHost');
+const categoryGridHost = document.getElementById('categoryGridHost');
+const selectedCategoryDisplay = document.getElementById('selectedCategoryDisplay');
+const selectedCategoryNameSpan = document.getElementById('selectedCategoryNameHost');
+const clearCategoryBtn = document.getElementById('clearCategoryBtn');
+const createLobbyBtn = document.getElementById('createLobbyBtn');
+const backToHostJoinFromSettings = document.getElementById('backToHostJoinFromSettings');
 
+// Join Settings Elements
 const roomCodeInput = document.getElementById('roomCodeInput');
 const playerNameInput = document.getElementById('playerNameInput');
 const joinGameBtn = document.getElementById('joinGameBtn');
 
+// Waiting Room Elements
 const roomCodeDisplay = document.getElementById('roomCodeDisplay');
 const copyRoomCodeBtn = document.getElementById('copyRoomCodeBtn');
 const playersListDiv = document.getElementById('playersList');
@@ -62,10 +72,10 @@ const cancelHostGameBtn = document.getElementById('cancelHostGameBtn');
 let startGameBtn = document.getElementById('startGameBtn');
 const readyStatusDiv = document.getElementById('readyStatus');
 
+// Local Game Screens
 const backToSettingsBtn = document.getElementById('backToSettingsBtn');
 const backToCategoryBtn = document.getElementById('backToCategoryBtn');
 const startDraftBtn = document.getElementById('startDraftBtn');
-
 const decRounds = document.getElementById('decRounds');
 const incRounds = document.getElementById('incRounds');
 const numRoundsSpan = document.getElementById('numRounds');
@@ -94,49 +104,178 @@ function updateDbStatus(message, color = '#facc15') {
     }
 }
 
-function updateTotalPicksDisplay() {
-    const totalPicks = numPlayers * numRounds;
-    const playerCountDisplay = document.getElementById('playerCountDisplay');
-    const roundsCountDisplay = document.getElementById('roundsCountDisplay');
-    const totalPicksDisplay = document.getElementById('totalPicksDisplay');
-    const timeDisplay = document.getElementById('timeDisplay');
-    const categoryNameDisplay = document.getElementById('categoryNameDisplay');
-    const gameModeDisplay = document.getElementById('gameModeDisplay');
-    
-    if (playerCountDisplay) playerCountDisplay.textContent = numPlayers;
-    if (roundsCountDisplay) roundsCountDisplay.textContent = numRounds;
-    if (totalPicksDisplay) totalPicksDisplay.textContent = totalPicks;
-    if (timeDisplay) timeDisplay.textContent = timerMinutes + ' min';
-    if (categoryNameDisplay && selectedCategoryName) {
-        categoryNameDisplay.textContent = selectedCategoryName;
-    }
-    if (gameModeDisplay) {
-        gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
-    }
-}
-
 function getPlayerIcon(index) {
     const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
     return icons[index % icons.length];
 }
 
-function getSelectedGameMode() {
-    const radios = document.querySelectorAll('input[name="gameMode"]');
-    for (let radio of radios) {
-        if (radio.checked) return radio.value;
-    }
-    return 'local';
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, (m) => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
 
-function getSelectedDraftType() {
-    const radios = document.querySelectorAll('input[name="draftType"]');
+function formatCategoryName(tableName) {
+    return tableName.replace(/_/g, ' ').split(' ').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+}
+
+function getCategoryIcon(tableName) {
+    const iconMap = {
+        'ice_cream_flavors': '🍦',
+        'pizza_toppings': '🍕',
+        'movie_genres': '🎬',
+        'vacation_destinations': '✈️'
+    };
+    return iconMap[tableName] || '📦';
+}
+
+// ==================== UNIFIED HOST SETTINGS ====================
+
+let hostNumPlayers = 2;
+let hostNumRounds = 5;
+let hostTimerMinutes = 3;
+let hostSelectedCategory = null;
+let hostSelectedCategoryName = null;
+let hostSelectedCategoryCount = 0;
+let hostDraftType = 'snake';
+
+function getHostDraftType() {
+    const radios = document.querySelectorAll('input[name="draftTypeHost"]');
     for (let radio of radios) {
         if (radio.checked) return radio.value;
     }
     return 'snake';
 }
 
-// ==================== SOCKET.IO FUNCTIONS ====================
+function updateHostSummary() {
+    const summaryPlayers = document.getElementById('summaryPlayers');
+    const summaryCategory = document.getElementById('summaryCategory');
+    const summaryDraftType = document.getElementById('summaryDraftType');
+    const summaryRounds = document.getElementById('summaryRounds');
+    const summaryTimer = document.getElementById('summaryTimer');
+    const summaryTotalPicks = document.getElementById('summaryTotalPicks');
+    
+    if (summaryPlayers) summaryPlayers.textContent = hostNumPlayers;
+    if (summaryRounds) summaryRounds.textContent = hostNumRounds;
+    if (summaryTimer) summaryTimer.textContent = hostTimerMinutes + ' min';
+    if (summaryDraftType) summaryDraftType.textContent = hostDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+    if (summaryCategory) summaryCategory.textContent = hostSelectedCategoryName || 'Not selected';
+    
+    const totalPicks = hostNumPlayers * hostNumRounds;
+    if (summaryTotalPicks) summaryTotalPicks.textContent = totalPicks;
+}
+
+async function loadCategoriesForHost() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/categories`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        
+        if (data.success && data.categories) {
+            displayCategoriesInHostGrid(data.categories);
+            updateDbStatus('✅ Ready', '#10b981');
+        } else {
+            throw new Error('No active categories found');
+        }
+    } catch (error) {
+        console.error('Error loading categories:', error);
+        updateDbStatus('❌ Connection Error', '#ef4444');
+        showToast(`Could not connect to server: ${error.message}`, 5000);
+    }
+}
+
+function displayCategoriesInHostGrid(categories) {
+    if (!categoryGridHost) return;
+    
+    categoryGridHost.innerHTML = '';
+    
+    categories.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'category-card-small';
+        card.setAttribute('data-category', cat.table_name);
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'category-icon-small';
+        iconSpan.textContent = getCategoryIcon(cat.table_name);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'category-name-small';
+        nameSpan.textContent = formatCategoryName(cat.table_name);
+        
+        const countSpan = document.createElement('span');
+        countSpan.className = 'category-count-small';
+        countSpan.textContent = `${cat.item_count} items`;
+        
+        card.appendChild(iconSpan);
+        card.appendChild(nameSpan);
+        card.appendChild(countSpan);
+        
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            
+            hostSelectedCategory = cat.table_name;
+            hostSelectedCategoryName = formatCategoryName(cat.table_name);
+            hostSelectedCategoryCount = cat.item_count;
+            
+            if (selectedCategoryDisplay) selectedCategoryDisplay.style.display = 'flex';
+            if (selectedCategoryNameSpan) selectedCategoryNameSpan.textContent = hostSelectedCategoryName;
+            
+            updateHostSummary();
+            showToast(`Selected: ${hostSelectedCategoryName}`, 1500);
+        });
+        
+        categoryGridHost.appendChild(card);
+    });
+}
+
+function setupClearCategoryBtn() {
+    if (clearCategoryBtn) {
+        clearCategoryBtn.addEventListener('click', () => {
+            hostSelectedCategory = null;
+            hostSelectedCategoryName = null;
+            hostSelectedCategoryCount = 0;
+            
+            if (selectedCategoryDisplay) selectedCategoryDisplay.style.display = 'none';
+            document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
+            updateHostSummary();
+            showToast('Category cleared', 1500);
+        });
+    }
+}
+
+function createLobby() {
+    // Validate all settings
+    if (!hostSelectedCategory) {
+        showToast('Please select a category', 3000);
+        return;
+    }
+    
+    const totalPicks = hostNumPlayers * hostNumRounds;
+    if (totalPicks > hostSelectedCategoryCount) {
+        showToast(`⚠️ Need ${totalPicks} items but only ${hostSelectedCategoryCount} available. Reduce players or rounds.`, 4000);
+        return;
+    }
+    
+    // Set global game config
+    numPlayers = hostNumPlayers;
+    selectedCategory = hostSelectedCategory;
+    selectedCategoryName = hostSelectedCategoryName;
+    selectedCategoryCount = hostSelectedCategoryCount;
+    numRounds = hostNumRounds;
+    timerMinutes = hostTimerMinutes;
+    draftType = getHostDraftType();
+    
+    // Initialize socket and create game room
+    initSocketConnection();
+    setTimeout(() => createGameRoom(), 500);
+}
 
 function initSocketConnection() {
     const serverUrl = isDevelopment 
@@ -186,8 +325,6 @@ function initSocketConnection() {
             const allReady = players.every(p => p.isReady === true);
             const fullPlayers = players.length === numPlayers;
             
-            console.log('All ready?', allReady, 'Full?', fullPlayers);
-            
             if (allReady && fullPlayers) {
                 playersAreReady = true;
                 if (startGameBtn) {
@@ -224,7 +361,7 @@ function initSocketConnection() {
             isHost: isHost,
             draftState: draftState
         }));
-        window.location.href = 'multiplayer-draft.html';
+        window.location.href = 'draft.html';
     });
     
     socket.on('startDraftError', (error) => {
@@ -242,43 +379,7 @@ function initSocketConnection() {
     });
 }
 
-function updatePlayersList(players) {
-    if (!playersListDiv) return;
-    
-    playersListDiv.innerHTML = '';
-    players.forEach((player, index) => {
-        const playerDiv = document.createElement('div');
-        playerDiv.className = 'player-item';
-        playerDiv.innerHTML = `
-            <span>${getPlayerIcon(index)} ${escapeHtml(player.name)}</span>
-            <span class="ready-status" style="color: ${player.isReady ? '#22c55e' : '#facc15'}">
-                ${player.isReady ? '✓ Ready' : '⏳ Waiting...'}
-            </span>
-        `;
-        playersListDiv.appendChild(playerDiv);
-    });
-    
-    if (playerCountSpan) playerCountSpan.textContent = players.length;
-}
-
 function createGameRoom() {
-    // Use tempCategory if selectedCategory is null
-    if (!selectedCategory && tempCategory) {
-        selectedCategory = tempCategory;
-        selectedCategoryName = tempCategoryName;
-        selectedCategoryCount = tempCategoryCount;
-    }
-    
-    if (!selectedCategory) {
-        console.error('No category selected!');
-        showToast('Please select a category first', 3000);
-        // Go back to category selection
-        hostSettingsScreen.style.display = 'none';
-        categoryScreen.style.display = 'block';
-        loadCategories();
-        return;
-    }
-    
     const gameConfig = {
         numPlayers: numPlayers,
         category: selectedCategory,
@@ -290,7 +391,6 @@ function createGameRoom() {
     };
     
     console.log('Creating game with config:', gameConfig);
-    console.log('Selected category:', selectedCategory);
     
     socket.emit('createGame', gameConfig, (response) => {
         if (response.success) {
@@ -312,40 +412,62 @@ function createGameRoom() {
                 waitingSubtitle.innerHTML = `Share code: ${currentRoomCode} with up to ${numPlayers - 1} friends`;
             }
             
-            if (copyRoomCodeBtn) {
-                const newCopyBtn = copyRoomCodeBtn.cloneNode(true);
-                copyRoomCodeBtn.parentNode.replaceChild(newCopyBtn, copyRoomCodeBtn);
-                newCopyBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(currentRoomCode);
-                    showToast('Room code copied!', 1500);
-                });
-            }
-            
-            if (cancelHostGameBtn) {
-                const newCancelBtn = cancelHostGameBtn.cloneNode(true);
-                cancelHostGameBtn.parentNode.replaceChild(newCancelBtn, cancelHostGameBtn);
-                newCancelBtn.addEventListener('click', () => {
-                    window.location.reload();
-                });
-            }
-            
-            if (startGameBtn) {
-                const newStartBtn = startGameBtn.cloneNode(true);
-                startGameBtn.parentNode.replaceChild(newStartBtn, startGameBtn);
-                startGameBtn = newStartBtn;
-                startGameBtn.addEventListener('click', () => {
-                    console.log('Start button clicked. Players ready?', playersAreReady);
-                    if (playersAreReady) {
-                        socket.emit('startDraft', currentRoomCode);
-                        startGameBtn.disabled = true;
-                        startGameBtn.textContent = 'Starting...';
-                    } else {
-                        showToast('Waiting for all players to ready up...', 2000);
-                    }
-                });
-            }
+            setupWaitingRoomButtons();
         }
     });
+}
+
+function setupWaitingRoomButtons() {
+    if (copyRoomCodeBtn) {
+        const newCopyBtn = copyRoomCodeBtn.cloneNode(true);
+        copyRoomCodeBtn.parentNode.replaceChild(newCopyBtn, copyRoomCodeBtn);
+        newCopyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(currentRoomCode);
+            showToast('Room code copied!', 1500);
+        });
+    }
+    
+    if (cancelHostGameBtn) {
+        const newCancelBtn = cancelHostGameBtn.cloneNode(true);
+        cancelHostGameBtn.parentNode.replaceChild(newCancelBtn, cancelHostGameBtn);
+        newCancelBtn.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
+    
+    if (startGameBtn) {
+        const newStartBtn = startGameBtn.cloneNode(true);
+        startGameBtn.parentNode.replaceChild(newStartBtn, startGameBtn);
+        startGameBtn = newStartBtn;
+        startGameBtn.addEventListener('click', () => {
+            if (playersAreReady) {
+                socket.emit('startDraft', currentRoomCode);
+                startGameBtn.disabled = true;
+                startGameBtn.textContent = 'Starting...';
+            } else {
+                showToast('Waiting for all players to ready up...', 2000);
+            }
+        });
+    }
+}
+
+function updatePlayersList(players) {
+    if (!playersListDiv) return;
+    
+    playersListDiv.innerHTML = '';
+    players.forEach((player, index) => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-item';
+        playerDiv.innerHTML = `
+            <span>${getPlayerIcon(index)} ${escapeHtml(player.name)}</span>
+            <span class="ready-status" style="color: ${player.isReady ? '#22c55e' : '#facc15'}">
+                ${player.isReady ? '✓ Ready' : '⏳ Waiting...'}
+            </span>
+        `;
+        playersListDiv.appendChild(playerDiv);
+    });
+    
+    if (playerCountSpan) playerCountSpan.textContent = players.length;
 }
 
 function showWaitingRoomForJoiner() {
@@ -374,21 +496,10 @@ function showWaitingRoomForJoiner() {
     if (startGameBtn) startGameBtn.style.display = 'none';
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, (m) => {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-
-// ==================== API FUNCTIONS ====================
+// ==================== LOCAL GAME FUNCTIONS ====================
 
 async function loadCategories() {
     try {
-        console.log(`Fetching categories from: ${API_BASE_URL}/categories`);
         const response = await fetch(`${API_BASE_URL}/categories`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
@@ -403,22 +514,6 @@ async function loadCategories() {
         updateDbStatus('❌ Connection Error', '#ef4444');
         showToast(`Could not connect to server: ${error.message}`, 5000);
     }
-}
-
-function formatCategoryName(tableName) {
-    return tableName.replace(/_/g, ' ').split(' ').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-    ).join(' ');
-}
-
-function getCategoryIcon(tableName) {
-    const iconMap = {
-        'ice_cream_flavors': '🍦',
-        'pizza_toppings': '🍕',
-        'movie_genres': '🎬',
-        'vacation_destinations': '✈️'
-    };
-    return iconMap[tableName] || '📦';
 }
 
 function displayCategories(categories) {
@@ -451,83 +546,48 @@ function displayCategories(categories) {
         card.appendChild(countDiv);
         
         card.addEventListener('click', () => {
-            // Store in temp variables first
-            tempCategory = cat.table_name;
-            tempCategoryName = formatCategoryName(cat.table_name);
-            tempCategoryCount = cat.item_count;
+            selectedCategory = cat.table_name;
+            selectedCategoryName = formatCategoryName(cat.table_name);
+            selectedCategoryCount = cat.item_count;
             
-            // Also set the main variables
-            selectedCategory = tempCategory;
-            selectedCategoryName = tempCategoryName;
-            selectedCategoryCount = tempCategoryCount;
+            const categoryNameDisplay = document.getElementById('categoryNameDisplay');
+            if (categoryNameDisplay) categoryNameDisplay.textContent = selectedCategoryName;
             
-            console.log('Category selected:', selectedCategory, selectedCategoryName);
-            showToast(`Selected: ${selectedCategoryName}`, 1500);
-            
-            // Determine where to go based on game mode and user type
-            if (gameMode === 'online' && isHost) {
-                // For host in online mode, go back to host settings
-                categoryScreen.style.display = 'none';
-                hostSettingsScreen.style.display = 'block';
-                
-                // Add visual feedback that category is selected
-                updateSelectedCategoryDisplay();
-            } else {
-                // For local game, go to draft settings
-                categoryScreen.style.display = 'none';
-                settingsScreen.style.display = 'block';
-                updateTotalPicksDisplay();
-            }
+            categoryScreen.style.display = 'none';
+            settingsScreen.style.display = 'block';
+            updateTotalPicksDisplay();
         });
         
         categoryGrid.appendChild(card);
     });
 }
 
-function updateSelectedCategoryDisplay() {
-    const hostSettingsContent = document.querySelector('#hostSettingsScreen .config-content');
-    if (!hostSettingsContent) return;
+function updateTotalPicksDisplay() {
+    const totalPicks = numPlayers * numRounds;
+    const playerCountDisplay = document.getElementById('playerCountDisplay');
+    const roundsCountDisplay = document.getElementById('roundsCountDisplay');
+    const totalPicksDisplay = document.getElementById('totalPicksDisplay');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const categoryNameDisplay = document.getElementById('categoryNameDisplay');
     
-    // Remove existing display if any
-    const existingDisplay = document.getElementById('selectedCategoryDisplay');
-    if (existingDisplay) {
-        existingDisplay.remove();
-    }
-    
-    if (selectedCategoryName) {
-        const displayDiv = document.createElement('div');
-        displayDiv.id = 'selectedCategoryDisplay';
-        displayDiv.className = 'config-card';
-        displayDiv.style.background = '#10b98120';
-        displayDiv.style.border = '1px solid #10b981';
-        displayDiv.innerHTML = `
-            <label class="config-label">
-                <span class="label-icon">🎯</span>
-                Selected Category
-            </label>
-            <div style="font-size: 18px; font-weight: bold; color: #10b981; padding: 10px 0;">
-                ${selectedCategoryName} (${selectedCategoryCount} items)
-            </div>
-            <button id="changeCategoryBtn" class="secondary-btn" style="margin-top: 10px;">Change Category</button>
-        `;
-        
-        // Insert after the first config-card
-        const firstCard = hostSettingsContent.querySelector('.config-card');
-        if (firstCard) {
-            firstCard.insertAdjacentElement('afterend', displayDiv);
-        } else {
-            hostSettingsContent.appendChild(displayDiv);
-        }
-        
-        document.getElementById('changeCategoryBtn')?.addEventListener('click', () => {
-            hostSettingsScreen.style.display = 'none';
-            categoryScreen.style.display = 'block';
-            loadCategories();
-        });
+    if (playerCountDisplay) playerCountDisplay.textContent = numPlayers;
+    if (roundsCountDisplay) roundsCountDisplay.textContent = numRounds;
+    if (totalPicksDisplay) totalPicksDisplay.textContent = totalPicks;
+    if (timeDisplay) timeDisplay.textContent = timerMinutes + ' min';
+    if (categoryNameDisplay && selectedCategoryName) {
+        categoryNameDisplay.textContent = selectedCategoryName;
     }
 }
 
-async function startDraft() {
+function getSelectedDraftType() {
+    const radios = document.querySelectorAll('input[name="draftType"]');
+    for (let radio of radios) {
+        if (radio.checked) return radio.value;
+    }
+    return 'snake';
+}
+
+async function startLocalDraft() {
     const totalPicks = numPlayers * numRounds;
     if (totalPicks > selectedCategoryCount) {
         showToast(`⚠️ Need ${totalPicks} items but only ${selectedCategoryCount} available.`, 4000);
@@ -536,21 +596,6 @@ async function startDraft() {
     
     const selectedDraftType = getSelectedDraftType();
     
-    if (gameMode === 'online' && isHost) {
-        // For online host, save config and return - will be used in createGameRoom
-        const gameConfig = {
-            numPlayers: numPlayers,
-            category: selectedCategory,
-            categoryName: selectedCategoryName,
-            numRounds: numRounds,
-            timerMinutes: timerMinutes,
-            draftType: selectedDraftType
-        };
-        localStorage.setItem('draftConfig', JSON.stringify(gameConfig));
-        return;
-    }
-    
-    // Local game
     try {
         const response = await fetch(`${API_BASE_URL}/items/${selectedCategory}/with-scores`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -565,7 +610,7 @@ async function startDraft() {
                 timerMinutes: timerMinutes,
                 draftType: selectedDraftType,
                 items: data.items,
-                gameMode: gameMode
+                gameMode: 'local'
             };
             localStorage.setItem('draftConfig', JSON.stringify(draftConfig));
             window.location.href = 'draft.html';
@@ -578,6 +623,7 @@ async function startDraft() {
 
 // ==================== EVENT LISTENERS ====================
 
+// Host/Join Selection
 if (hostOption) {
     hostOption.addEventListener('click', () => {
         isHost = true;
@@ -585,13 +631,28 @@ if (hostOption) {
         hostJoinScreen.style.display = 'none';
         hostSettingsScreen.style.display = 'block';
         
-        // Reset temp category when starting new host flow
-        tempCategory = null;
-        tempCategoryName = null;
-        tempCategoryCount = 0;
-        selectedCategory = null;
-        selectedCategoryName = null;
-        selectedCategoryCount = 0;
+        // Reset host settings
+        hostNumPlayers = 2;
+        hostNumRounds = 5;
+        hostTimerMinutes = 3;
+        hostSelectedCategory = null;
+        hostSelectedCategoryName = null;
+        hostSelectedCategoryCount = 0;
+        hostDraftType = 'snake';
+        
+        if (numPlayersHostSpan) numPlayersHostSpan.textContent = hostNumPlayers;
+        if (numRoundsHostSpan) numRoundsHostSpan.textContent = hostNumRounds;
+        if (timerMinutesHostSpan) timerMinutesHostSpan.textContent = hostTimerMinutes;
+        
+        const snakeRadio = document.querySelector('input[name="draftTypeHost"][value="snake"]');
+        if (snakeRadio) snakeRadio.checked = true;
+        
+        if (selectedCategoryDisplay) selectedCategoryDisplay.style.display = 'none';
+        document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
+        
+        updateHostSummary();
+        loadCategoriesForHost();
+        setupClearCategoryBtn();
     });
 }
 
@@ -604,8 +665,90 @@ if (joinOption) {
     });
 }
 
+// Host Settings Controls
+if (decPlayersHost) {
+    decPlayersHost.addEventListener('click', () => {
+        if (hostNumPlayers > 2) {
+            hostNumPlayers--;
+            if (numPlayersHostSpan) numPlayersHostSpan.textContent = hostNumPlayers;
+            updateHostSummary();
+        }
+    });
+}
+
+if (incPlayersHost) {
+    incPlayersHost.addEventListener('click', () => {
+        if (hostNumPlayers < 8) {
+            hostNumPlayers++;
+            if (numPlayersHostSpan) numPlayersHostSpan.textContent = hostNumPlayers;
+            updateHostSummary();
+        }
+    });
+}
+
+if (decRoundsHost) {
+    decRoundsHost.addEventListener('click', () => {
+        if (hostNumRounds > 3) {
+            hostNumRounds--;
+            if (numRoundsHostSpan) numRoundsHostSpan.textContent = hostNumRounds;
+            updateHostSummary();
+        }
+    });
+}
+
+if (incRoundsHost) {
+    incRoundsHost.addEventListener('click', () => {
+        if (hostNumRounds < 10) {
+            hostNumRounds++;
+            if (numRoundsHostSpan) numRoundsHostSpan.textContent = hostNumRounds;
+            updateHostSummary();
+        }
+    });
+}
+
+if (decTimeHost) {
+    decTimeHost.addEventListener('click', () => {
+        if (hostTimerMinutes > 1) {
+            hostTimerMinutes--;
+            if (timerMinutesHostSpan) timerMinutesHostSpan.textContent = hostTimerMinutes;
+            updateHostSummary();
+        }
+    });
+}
+
+if (incTimeHost) {
+    incTimeHost.addEventListener('click', () => {
+        if (hostTimerMinutes < 5) {
+            hostTimerMinutes++;
+            if (timerMinutesHostSpan) timerMinutesHostSpan.textContent = hostTimerMinutes;
+            updateHostSummary();
+        }
+    });
+}
+
+// Draft type change listeners
+document.querySelectorAll('input[name="draftTypeHost"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        hostDraftType = getHostDraftType();
+        updateHostSummary();
+    });
+});
+
+// Create Lobby button
+if (createLobbyBtn) {
+    createLobbyBtn.addEventListener('click', createLobby);
+}
+
+// Back buttons
 if (backToHostJoinBtn) {
     backToHostJoinBtn.addEventListener('click', () => {
+        hostSettingsScreen.style.display = 'none';
+        hostJoinScreen.style.display = 'block';
+    });
+}
+
+if (backToHostJoinFromSettings) {
+    backToHostJoinFromSettings.addEventListener('click', () => {
         hostSettingsScreen.style.display = 'none';
         hostJoinScreen.style.display = 'block';
     });
@@ -618,55 +761,7 @@ if (backToHostJoinJoinBtn) {
     });
 }
 
-if (decPlayersHost) {
-    decPlayersHost.addEventListener('click', () => {
-        if (numPlayers > 2) {
-            numPlayers--;
-            if (numPlayersHostSpan) numPlayersHostSpan.textContent = numPlayers;
-            updateTotalPicksDisplay();
-        }
-    });
-}
-
-if (incPlayersHost) {
-    incPlayersHost.addEventListener('click', () => {
-        if (numPlayers < 8) {
-            numPlayers++;
-            if (numPlayersHostSpan) numPlayersHostSpan.textContent = numPlayers;
-            updateTotalPicksDisplay();
-        }
-    });
-}
-
-if (continueToCategoryBtn) {
-    continueToCategoryBtn.addEventListener('click', () => {
-        gameMode = getSelectedGameMode();
-        
-        if (gameMode === 'online' && isHost) {
-            // Check if category is already selected
-            if (!selectedCategory && !tempCategory) {
-                // No category selected yet, go to category selection
-                hostSettingsScreen.style.display = 'none';
-                categoryScreen.style.display = 'block';
-                loadCategories();
-            } else {
-                // Category already selected, initialize socket and create game
-                if (!selectedCategory && tempCategory) {
-                    selectedCategory = tempCategory;
-                    selectedCategoryName = tempCategoryName;
-                    selectedCategoryCount = tempCategoryCount;
-                }
-                initSocketConnection();
-                setTimeout(() => createGameRoom(), 500);
-            }
-        } else {
-            hostSettingsScreen.style.display = 'none';
-            categoryScreen.style.display = 'block';
-            loadCategories();
-        }
-    });
-}
-
+// Join Game
 if (joinGameBtn) {
     joinGameBtn.addEventListener('click', () => {
         const roomCode = roomCodeInput ? roomCodeInput.value.toUpperCase() : '';
@@ -698,24 +793,7 @@ if (joinGameBtn) {
     });
 }
 
-if (backToSettingsBtn) {
-    backToSettingsBtn.addEventListener('click', () => {
-        settingsScreen.style.display = 'none';
-        categoryScreen.style.display = 'block';
-    });
-}
-
-if (backToCategoryBtn) {
-    backToCategoryBtn.addEventListener('click', () => {
-        settingsScreen.style.display = 'none';
-        categoryScreen.style.display = 'block';
-    });
-}
-
-if (startDraftBtn) {
-    startDraftBtn.addEventListener('click', startDraft);
-}
-
+// Local Game Controls
 if (decRounds) {
     decRounds.addEventListener('click', () => {
         if (numRounds > 3) {
@@ -751,6 +829,67 @@ if (incTime) {
         if (timerMinutes < 5) {
             timerMinutes++;
             if (timerMinutesSpan) timerMinutesSpan.textContent = timerMinutes;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+if (startDraftBtn) {
+    startDraftBtn.addEventListener('click', startLocalDraft);
+}
+
+if (backToSettingsBtn) {
+    backToSettingsBtn.addEventListener('click', () => {
+        settingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+    });
+}
+
+if (backToCategoryBtn) {
+    backToCategoryBtn.addEventListener('click', () => {
+        settingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+    });
+}
+
+// Local game navigation from player count screen
+const continueToCategoryFromPlayers = document.getElementById('continueToCategoryFromPlayers');
+if (continueToCategoryFromPlayers) {
+    continueToCategoryFromPlayers.addEventListener('click', () => {
+        document.getElementById('playerCountScreen').style.display = 'none';
+        categoryScreen.style.display = 'block';
+        loadCategories();
+    });
+}
+
+const backToPlayersFromCategory = document.getElementById('backToPlayersFromCategory');
+if (backToPlayersFromCategory) {
+    backToPlayersFromCategory.addEventListener('click', () => {
+        categoryScreen.style.display = 'none';
+        document.getElementById('playerCountScreen').style.display = 'block';
+    });
+}
+
+// Player count controls for local game
+const decPlayers = document.getElementById('decPlayers');
+const incPlayers = document.getElementById('incPlayers');
+const numPlayersSpan = document.getElementById('numPlayers');
+
+if (decPlayers) {
+    decPlayers.addEventListener('click', () => {
+        if (numPlayers > 2) {
+            numPlayers--;
+            if (numPlayersSpan) numPlayersSpan.textContent = numPlayers;
+            updateTotalPicksDisplay();
+        }
+    });
+}
+
+if (incPlayers) {
+    incPlayers.addEventListener('click', () => {
+        if (numPlayers < 8) {
+            numPlayers++;
+            if (numPlayersSpan) numPlayersSpan.textContent = numPlayers;
             updateTotalPicksDisplay();
         }
     });
