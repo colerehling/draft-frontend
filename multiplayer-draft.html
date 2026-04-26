@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Draft</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+<div class="draft-app">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1 id="draftTitle">MULTIPLAYER DRAFT</h1>
+            <div class="sub" id="draftSubtitle">Online multiplayer draft</div>
+        </div>
+        <div class="badge" id="connectionStatus">🟢 Connected</div>
+    </div>
+
+    <div id="gameScreen">
+        <div class="turn-panel">
+            <div class="turn-badge">
+                <span class="turn-label">🎲 CURRENT TURN</span>
+                <span id="activePlayerName" class="active-player">Waiting...</span>
+            </div>
+            <div class="timer-container">
+                <span class="timer-icon">⏱️</span>
+                <span id="timerDisplay" class="timer-display">--:--</span>
+                <div class="timer-bar">
+                    <div id="timerBarFill" class="timer-bar-fill"></div>
+                </div>
+            </div>
+            <div class="turn-status">
+                <span class="lock-icon">⏳</span>
+                <span id="turnMessage">Waiting for draft to start...</span>
+            </div>
+        </div>
+
+        <div id="playersContainer" class="players-container"></div>
+
+        <div class="available-pool">
+            <div class="section-header">
+                <h2 id="categoryTitle">📦 Draft Pool</h2>
+                <span class="badge" id="poolCount">0 items</span>
+            </div>
+            <div id="availableList" class="item-list">
+                <div class="empty-state">⏳ Waiting for draft to start...</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="multiplayer-draft.js"></script>
+</body>
+</html>
