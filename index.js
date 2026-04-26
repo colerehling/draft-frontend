@@ -15,6 +15,7 @@ let socket = null;
 let isHost = false;
 let currentRoomCode = null;
 let gameMode = 'local'; // 'local' or 'online'
+let playersAreReady = false;
 
 // Game configuration variables
 let numPlayers = 2;
@@ -65,53 +66,63 @@ const backToSettingsBtn = document.getElementById('backToSettingsBtn');
 const backToCategoryBtn = document.getElementById('backToCategoryBtn');
 const startDraftBtn = document.getElementById('startDraftBtn');
 
-// ==================== STEP 1: Host or Join Selection ====================
+// Rounds and Timer controls
+const decRounds = document.getElementById('decRounds');
+const incRounds = document.getElementById('incRounds');
+const numRoundsSpan = document.getElementById('numRounds');
+const decTime = document.getElementById('decTime');
+const incTime = document.getElementById('incTime');
+const timerMinutesSpan = document.getElementById('timerMinutes');
 
-hostOption.addEventListener('click', () => {
-    isHost = true;
-    gameMode = 'online';
-    hostJoinScreen.style.display = 'none';
-    hostSettingsScreen.style.display = 'block';
-});
+// ==================== HELPER FUNCTIONS ====================
 
-joinOption.addEventListener('click', () => {
-    isHost = false;
-    gameMode = 'online';
-    hostJoinScreen.style.display = 'none';
-    joinSettingsScreen.style.display = 'block';
-});
-
-backToHostJoinBtn.addEventListener('click', () => {
-    hostSettingsScreen.style.display = 'none';
-    hostJoinScreen.style.display = 'block';
-});
-
-backToHostJoinJoinBtn.addEventListener('click', () => {
-    joinSettingsScreen.style.display = 'none';
-    hostJoinScreen.style.display = 'block';
-});
-
-// ==================== Host Settings ====================
-
-if (decPlayersHost && incPlayersHost && numPlayersHostSpan) {
-    decPlayersHost.addEventListener('click', () => {
-        if (numPlayers > 2) {
-            numPlayers--;
-            numPlayersHostSpan.textContent = numPlayers;
-            updateTotalPicksDisplay();
-        }
-    });
-    
-    incPlayersHost.addEventListener('click', () => {
-        if (numPlayers < 8) {
-            numPlayers++;
-            numPlayersHostSpan.textContent = numPlayers;
-            updateTotalPicksDisplay();
-        }
-    });
+function showToast(message, duration = 2200) {
+    const toastEl = document.getElementById('toastMsg');
+    if (toastEl) {
+        toastEl.innerText = message;
+        toastEl.style.opacity = '1';
+        setTimeout(() => {
+            toastEl.style.opacity = '0';
+        }, duration);
+    }
 }
 
-// Get selected game mode (local/online)
+function updateDbStatus(message, color = '#facc15') {
+    const statusEl = document.getElementById('dbStatus');
+    if (statusEl) {
+        statusEl.innerHTML = message;
+        statusEl.style.color = color;
+    }
+}
+
+function updateTotalPicksDisplay() {
+    const totalPicks = numPlayers * numRounds;
+    const elements = {
+        playerCountDisplay: document.getElementById('playerCountDisplay'),
+        roundsCountDisplay: document.getElementById('roundsCountDisplay'),
+        totalPicksDisplay: document.getElementById('totalPicksDisplay'),
+        timeDisplay: document.getElementById('timeDisplay'),
+        categoryNameDisplay: document.getElementById('categoryNameDisplay'),
+        gameModeDisplay: document.getElementById('gameModeDisplay')
+    };
+    
+    if (elements.playerCountDisplay) elements.playerCountDisplay.textContent = numPlayers;
+    if (elements.roundsCountDisplay) elements.roundsCountDisplay.textContent = numRounds;
+    if (elements.totalPicksDisplay) elements.totalPicksDisplay.textContent = totalPicks;
+    if (elements.timeDisplay) elements.timeDisplay.textContent = timerMinutes + ' min';
+    if (elements.categoryNameDisplay && selectedCategoryName) {
+        elements.categoryNameDisplay.textContent = selectedCategoryName;
+    }
+    if (elements.gameModeDisplay) {
+        elements.gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
+    }
+}
+
+function getPlayerIcon(index) {
+    const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
+    return icons[index % icons.length];
+}
+
 function getSelectedGameMode() {
     const radios = document.querySelectorAll('input[name="gameMode"]');
     for (let radio of radios) {
@@ -122,94 +133,95 @@ function getSelectedGameMode() {
     return 'local';
 }
 
-continueToCategoryBtn.addEventListener('click', () => {
-    // Get game mode from selected radio
-    gameMode = getSelectedGameMode();
-    
-    if (gameMode === 'online' && isHost) {
-        // Initialize Socket.IO connection
-        initSocketConnection();
-        createGameRoom();
-    } else if (gameMode === 'local') {
-        // Local game - go directly to category selection
-        hostSettingsScreen.style.display = 'none';
-        categoryScreen.style.display = 'block';
-        loadCategories();
-    } else {
-        hostSettingsScreen.style.display = 'none';
-        categoryScreen.style.display = 'block';
-        loadCategories();
-    }
-});
-
-// ==================== Join Game ====================
-
-joinGameBtn.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value.toUpperCase();
-    const playerName = playerNameInput.value.trim();
-    
-    if (!roomCode || roomCode.length !== 6) {
-        showToast('Please enter a valid 6-character room code', 3000);
-        return;
-    }
-    
-    if (!playerName) {
-        showToast('Please enter your name', 3000);
-        return;
-    }
-    
-    initSocketConnection();
-    
-    socket.emit('joinGame', { roomCode, playerName }, (response) => {
-        if (response.success) {
-            currentRoomCode = response.roomCode;
-            showToast('Joined game! Waiting for host to start...', 2000);
-            
-            // For joiners, we don't need to select category or settings
-            // Just wait for the host to start the draft
-            joinSettingsScreen.style.display = 'none';
-            waitingRoom.style.display = 'block';
-            
-            // Show waiting UI
-            showWaitingRoomForJoiner();
-        } else {
-            showToast(response.error, 3000);
+function getSelectedDraftType() {
+    const radios = document.querySelectorAll('input[name="draftType"]');
+    for (let radio of radios) {
+        if (radio.checked) {
+            return radio.value;
         }
-    });
-});
+    }
+    return 'snake';
+}
 
-// ==================== Socket.IO Functions ====================
+// ==================== SOCKET.IO FUNCTIONS ====================
 
 function initSocketConnection() {
-    const serverUrl = isDevelopment ? 'http://localhost:3000' : 'https://draft-backend-f40v.onrender.com';
-    socket = io(serverUrl);
+    const serverUrl = isDevelopment 
+        ? 'http://localhost:3000' 
+        : 'https://draft-backend-f40v.onrender.com';
+    
+    console.log('Connecting to Socket.IO at:', serverUrl);
+    
+    socket = io(serverUrl, {
+        transports: ['websocket', 'polling'],
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+    });
     
     socket.on('connect', () => {
-        console.log('Connected to server');
+        console.log('Socket.IO connected successfully!');
+        showToast('Connected to game server!', 2000);
+    });
+    
+    socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
+        showToast('Error connecting to game server. Please refresh.', 5000);
     });
     
     socket.on('playerJoined', (players) => {
+        console.log('Player joined/updated:', players);
         updatePlayersList(players);
+        if (players.length === numPlayers && isHost) {
+            const allReady = players.every(p => p.isReady === true);
+            if (allReady) {
+                startGameBtn.style.display = 'block';
+                playersAreReady = true;
+            }
+        }
     });
     
     socket.on('playerLeft', (players) => {
         updatePlayersList(players);
         showToast('A player left the game', 2000);
+        if (isHost) {
+            startGameBtn.style.display = 'none';
+            playersAreReady = false;
+        }
     });
     
     socket.on('playerReadyUpdate', (players) => {
         updatePlayersList(players);
+        if (isHost) {
+            const allReady = players.every(p => p.isReady === true);
+            if (allReady && players.length === numPlayers) {
+                startGameBtn.style.display = 'block';
+                playersAreReady = true;
+                showToast('All players ready! You can start the game!', 3000);
+            } else {
+                startGameBtn.style.display = 'none';
+                playersAreReady = false;
+            }
+        }
+    });
+    
+    socket.on('hostReady', (isReady) => {
+        console.log('Host is ready:', isReady);
     });
     
     socket.on('allPlayersReady', () => {
+        console.log('All players ready event received');
         if (isHost) {
-            startGameBtn.style.display = 'block';
-            showToast('All players ready! Start the draft!');
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) {
+                startBtn.style.display = 'block';
+                showToast('All players ready! Click Start Game!', 3000);
+            }
         }
     });
     
     socket.on('draftStarted', (draftState) => {
-        // Save draft state and redirect
         localStorage.setItem('multiplayerDraft', JSON.stringify({
             isMultiplayer: true,
             roomCode: currentRoomCode,
@@ -220,8 +232,28 @@ function initSocketConnection() {
     });
     
     socket.on('error', (error) => {
+        console.error('Socket error:', error);
         showToast(error, 3000);
     });
+}
+
+function updatePlayersList(players) {
+    if (!playersListDiv) return;
+    
+    playersListDiv.innerHTML = '';
+    players.forEach((player, index) => {
+        const playerDiv = document.createElement('div');
+        playerDiv.className = 'player-item';
+        playerDiv.innerHTML = `
+            <span>${getPlayerIcon(index)} ${escapeHtml(player.name)}</span>
+            <span class="ready-status" style="color: ${player.isReady ? '#22c55e' : '#facc15'}">
+                ${player.isReady ? '✓ Ready' : '⏳ Waiting...'}
+            </span>
+        `;
+        playersListDiv.appendChild(playerDiv);
+    });
+    
+    if (playerCountSpan) playerCountSpan.textContent = players.length;
 }
 
 function createGameRoom() {
@@ -238,62 +270,89 @@ function createGameRoom() {
     socket.emit('createGame', gameConfig, (response) => {
         if (response.success) {
             currentRoomCode = response.roomCode;
-            roomCodeDisplay.textContent = currentRoomCode;
-            maxPlayersSpan.textContent = numPlayers;
+            if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoomCode;
+            if (maxPlayersSpan) maxPlayersSpan.textContent = numPlayers;
             
             hostSettingsScreen.style.display = 'none';
             waitingRoom.style.display = 'block';
             
-            copyRoomCodeBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(currentRoomCode);
-                showToast('Room code copied!', 1500);
-            });
+            if (startGameBtn) startGameBtn.style.display = 'none';
+            if (readyStatusDiv) readyStatusDiv.style.display = 'none';
             
-            cancelHostGameBtn.addEventListener('click', () => {
-                window.location.reload();
-            });
+            const waitingTitle = document.querySelector('#waitingRoom .config-header h2');
+            if (waitingTitle) waitingTitle.innerHTML = '👑 You are the Host';
             
-            startGameBtn.addEventListener('click', () => {
-                socket.emit('startDraft', currentRoomCode);
-            });
+            const waitingSubtitle = document.querySelector('#waitingRoom .config-header p');
+            if (waitingSubtitle) {
+                waitingSubtitle.innerHTML = `Share code: ${currentRoomCode} with up to ${numPlayers - 1} friends`;
+            }
+            
+            if (copyRoomCodeBtn) {
+                copyRoomCodeBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(currentRoomCode);
+                    showToast('Room code copied!', 1500);
+                });
+            }
+            
+            if (cancelHostGameBtn) {
+                cancelHostGameBtn.addEventListener('click', () => {
+                    window.location.reload();
+                });
+            }
+            
+            if (startGameBtn) {
+                startGameBtn.addEventListener('click', () => {
+                    if (playersAreReady) {
+                        socket.emit('startDraft', currentRoomCode);
+                    } else {
+                        showToast('Waiting for all players to ready up...', 2000);
+                    }
+                });
+            }
         }
     });
 }
 
-function updatePlayersList(players) {
-    playersListDiv.innerHTML = '';
-    players.forEach((player, index) => {
-        const playerDiv = document.createElement('div');
-        playerDiv.className = 'player-item';
-        playerDiv.innerHTML = `
-            <span>${getPlayerIcon(index)} ${player.name}</span>
-            <span class="ready-status">${player.isReady ? '✓ Ready' : '⏳ Waiting...'}</span>
-        `;
-        playersListDiv.appendChild(playerDiv);
-    });
-    playerCountSpan.textContent = players.length;
-}
-
 function showWaitingRoomForJoiner() {
-    // Show ready button for joiners
-    const readyBtn = document.createElement('button');
-    readyBtn.className = 'primary-btn';
-    readyBtn.textContent = 'I\'m Ready';
-    readyBtn.addEventListener('click', () => {
-        socket.emit('playerReady', currentRoomCode);
-        readyBtn.disabled = true;
-        readyBtn.textContent = '✓ Ready!';
+    const readyStatusArea = document.getElementById('readyStatus');
+    const startGameBtnElem = document.getElementById('startGameBtn');
+    
+    if (readyStatusArea) {
+        readyStatusArea.style.display = 'block';
+        
+        const readyBtn = document.createElement('button');
+        readyBtn.id = 'readyBtn';
+        readyBtn.className = 'primary-btn';
+        readyBtn.textContent = '✅ Ready Up';
+        readyBtn.addEventListener('click', () => {
+            socket.emit('playerReady', currentRoomCode);
+            readyBtn.disabled = true;
+            readyBtn.textContent = '✓ Ready!';
+            showToast('You are ready! Waiting for host to start...', 2000);
+        });
+        readyStatusArea.innerHTML = '';
+        readyStatusArea.appendChild(readyBtn);
+        
+        const hint = document.createElement('p');
+        hint.className = 'ready-hint';
+        hint.textContent = 'Click ready when you\'re ready to start!';
+        readyStatusArea.appendChild(hint);
+    }
+    
+    if (startGameBtnElem) startGameBtnElem.style.display = 'none';
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
     });
-    readyStatusDiv.innerHTML = '';
-    readyStatusDiv.appendChild(readyBtn);
 }
 
-function getPlayerIcon(index) {
-    const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
-    return icons[index % icons.length];
-}
-
-// ==================== Category Selection (Step 3) ====================
+// ==================== API FUNCTIONS ====================
 
 async function loadCategories() {
     try {
@@ -378,32 +437,17 @@ function selectCategory(category, categoryName, itemCount) {
     selectedCategoryName = categoryName;
     selectedCategoryCount = itemCount;
     
-    // Update display in settings screen
     const categoryNameDisplay = document.getElementById('categoryNameDisplay');
     const gameModeDisplay = document.getElementById('gameModeDisplay');
-    if (categoryNameDisplay) {
-        categoryNameDisplay.textContent = categoryName;
-    }
+    
+    if (categoryNameDisplay) categoryNameDisplay.textContent = categoryName;
     if (gameModeDisplay) {
         gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
     }
     
-    // Go to settings screen (Step 4)
     categoryScreen.style.display = 'none';
     settingsScreen.style.display = 'block';
     updateTotalPicksDisplay();
-}
-
-// ==================== Draft Settings (Step 4) ====================
-
-function getSelectedDraftType() {
-    const radios = document.querySelectorAll('input[name="draftType"]');
-    for (let radio of radios) {
-        if (radio.checked) {
-            return radio.value;
-        }
-    }
-    return 'snake';
 }
 
 async function startDraft() {
@@ -414,26 +458,22 @@ async function startDraft() {
         return;
     }
     
-    const draftType = getSelectedDraftType();
+    const selectedDraftType = getSelectedDraftType();
     
-    // If online game as host, we need to wait for all players to join
     if (gameMode === 'online' && isHost) {
-        // The draft will be started from the waiting room
-        // Save config and wait
         const gameConfig = {
             numPlayers: numPlayers,
             category: selectedCategory,
             categoryName: selectedCategoryName,
             numRounds: numRounds,
             timerMinutes: timerMinutes,
-            draftType: draftType
+            draftType: selectedDraftType
         };
         
         localStorage.setItem('draftConfig', JSON.stringify(gameConfig));
         return;
     }
     
-    // Local game or joiner - proceed normally
     try {
         console.log(`Fetching items for category: ${selectedCategory}`);
         const response = await fetch(`${API_BASE_URL}/items/${selectedCategory}/with-scores`);
@@ -451,7 +491,7 @@ async function startDraft() {
                 categoryName: selectedCategoryName,
                 numRounds: numRounds,
                 timerMinutes: timerMinutes,
-                draftType: draftType,
+                draftType: selectedDraftType,
                 items: data.items,
                 gameMode: gameMode
             };
@@ -466,58 +506,134 @@ async function startDraft() {
     }
 }
 
-function updateTotalPicksDisplay() {
-    const totalPicks = numPlayers * numRounds;
-    const elements = {
-        playerCountDisplay: document.getElementById('playerCountDisplay'),
-        roundsCountDisplay: document.getElementById('roundsCountDisplay'),
-        totalPicksDisplay: document.getElementById('totalPicksDisplay'),
-        timeDisplay: document.getElementById('timeDisplay'),
-        categoryNameDisplay: document.getElementById('categoryNameDisplay'),
-        gameModeDisplay: document.getElementById('gameModeDisplay')
-    };
-    
-    if (elements.playerCountDisplay) elements.playerCountDisplay.textContent = numPlayers;
-    if (elements.roundsCountDisplay) elements.roundsCountDisplay.textContent = numRounds;
-    if (elements.totalPicksDisplay) elements.totalPicksDisplay.textContent = totalPicks;
-    if (elements.timeDisplay) elements.timeDisplay.textContent = timerMinutes + ' min';
-    if (elements.categoryNameDisplay && selectedCategoryName) {
-        elements.categoryNameDisplay.textContent = selectedCategoryName;
-    }
-    if (elements.gameModeDisplay) {
-        elements.gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
-    }
+// ==================== EVENT LISTENERS ====================
+
+// Step 1: Host or Join Selection
+if (hostOption) {
+    hostOption.addEventListener('click', () => {
+        isHost = true;
+        gameMode = 'online';
+        hostJoinScreen.style.display = 'none';
+        hostSettingsScreen.style.display = 'block';
+    });
 }
 
-// ==================== Navigation ====================
+if (joinOption) {
+    joinOption.addEventListener('click', () => {
+        isHost = false;
+        gameMode = 'online';
+        hostJoinScreen.style.display = 'none';
+        joinSettingsScreen.style.display = 'block';
+    });
+}
 
-backToSettingsBtn.addEventListener('click', () => {
-    settingsScreen.style.display = 'none';
-    categoryScreen.style.display = 'block';
-});
+if (backToHostJoinBtn) {
+    backToHostJoinBtn.addEventListener('click', () => {
+        hostSettingsScreen.style.display = 'none';
+        hostJoinScreen.style.display = 'block';
+    });
+}
 
-backToCategoryBtn.addEventListener('click', () => {
-    settingsScreen.style.display = 'none';
-    categoryScreen.style.display = 'block';
-});
+if (backToHostJoinJoinBtn) {
+    backToHostJoinJoinBtn.addEventListener('click', () => {
+        joinSettingsScreen.style.display = 'none';
+        hostJoinScreen.style.display = 'block';
+    });
+}
 
-startDraftBtn.addEventListener('click', () => {
-    startDraft();
-});
+// Step 2: Host Settings
+if (decPlayersHost && incPlayersHost && numPlayersHostSpan) {
+    decPlayersHost.addEventListener('click', () => {
+        if (numPlayers > 2) {
+            numPlayers--;
+            numPlayersHostSpan.textContent = numPlayers;
+            updateTotalPicksDisplay();
+        }
+    });
+    
+    incPlayersHost.addEventListener('click', () => {
+        if (numPlayers < 8) {
+            numPlayers++;
+            numPlayersHostSpan.textContent = numPlayers;
+            updateTotalPicksDisplay();
+        }
+    });
+}
 
-// Rounds controls
-const decRounds = document.getElementById('decRounds');
-const incRounds = document.getElementById('incRounds');
-const numRoundsSpan = document.getElementById('numRounds');
-const decTime = document.getElementById('decTime');
-const incTime = document.getElementById('incTime');
-const timerMinutesSpan = document.getElementById('timerMinutes');
+if (continueToCategoryBtn) {
+    continueToCategoryBtn.addEventListener('click', () => {
+        gameMode = getSelectedGameMode();
+        
+        if (gameMode === 'online' && isHost) {
+            initSocketConnection();
+            createGameRoom();
+        } else {
+            hostSettingsScreen.style.display = 'none';
+            categoryScreen.style.display = 'block';
+            loadCategories();
+        }
+    });
+}
 
+// Step 2: Join Settings
+if (joinGameBtn) {
+    joinGameBtn.addEventListener('click', () => {
+        const roomCode = roomCodeInput ? roomCodeInput.value.toUpperCase() : '';
+        const playerName = playerNameInput ? playerNameInput.value.trim() : '';
+        
+        if (!roomCode || roomCode.length !== 6) {
+            showToast('Please enter a valid 6-character room code', 3000);
+            return;
+        }
+        
+        if (!playerName) {
+            showToast('Please enter your name', 3000);
+            return;
+        }
+        
+        initSocketConnection();
+        
+        socket.emit('joinGame', { roomCode, playerName }, (response) => {
+            if (response.success) {
+                currentRoomCode = response.roomCode;
+                showToast('Joined game! Waiting for host to start...', 2000);
+                joinSettingsScreen.style.display = 'none';
+                waitingRoom.style.display = 'block';
+                showWaitingRoomForJoiner();
+            } else {
+                showToast(response.error, 3000);
+            }
+        });
+    });
+}
+
+// Step 3: Category Navigation
+if (backToSettingsBtn) {
+    backToSettingsBtn.addEventListener('click', () => {
+        settingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+    });
+}
+
+if (backToCategoryBtn) {
+    backToCategoryBtn.addEventListener('click', () => {
+        settingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+    });
+}
+
+if (startDraftBtn) {
+    startDraftBtn.addEventListener('click', () => {
+        startDraft();
+    });
+}
+
+// Rounds and Timer Controls
 if (decRounds) {
     decRounds.addEventListener('click', () => {
         if (numRounds > 3) {
             numRounds--;
-            numRoundsSpan.textContent = numRounds;
+            if (numRoundsSpan) numRoundsSpan.textContent = numRounds;
             updateTotalPicksDisplay();
         }
     });
@@ -527,7 +643,7 @@ if (incRounds) {
     incRounds.addEventListener('click', () => {
         if (numRounds < 10) {
             numRounds++;
-            numRoundsSpan.textContent = numRounds;
+            if (numRoundsSpan) numRoundsSpan.textContent = numRounds;
             updateTotalPicksDisplay();
         }
     });
@@ -537,7 +653,7 @@ if (decTime) {
     decTime.addEventListener('click', () => {
         if (timerMinutes > 1) {
             timerMinutes--;
-            timerMinutesSpan.textContent = timerMinutes;
+            if (timerMinutesSpan) timerMinutesSpan.textContent = timerMinutes;
             updateTotalPicksDisplay();
         }
     });
@@ -547,39 +663,22 @@ if (incTime) {
     incTime.addEventListener('click', () => {
         if (timerMinutes < 5) {
             timerMinutes++;
-            timerMinutesSpan.textContent = timerMinutes;
+            if (timerMinutesSpan) timerMinutesSpan.textContent = timerMinutes;
             updateTotalPicksDisplay();
         }
     });
 }
 
-function showToast(message, duration = 2200) {
-    const toastEl = document.getElementById('toastMsg');
-    if (toastEl) {
-        toastEl.innerText = message;
-        toastEl.style.opacity = '1';
-        setTimeout(() => {
-            toastEl.style.opacity = '0';
-        }, duration);
-    }
-}
+// ==================== INITIALIZATION ====================
 
-function updateDbStatus(message, color = '#facc15') {
-    const statusEl = document.getElementById('dbStatus');
-    if (statusEl) {
-        statusEl.innerHTML = message;
-        statusEl.style.color = color;
-    }
-}
-
-// Initialize - show host/join screen first
 function init() {
-    hostJoinScreen.style.display = 'block';
-    hostSettingsScreen.style.display = 'none';
-    joinSettingsScreen.style.display = 'none';
-    categoryScreen.style.display = 'none';
-    settingsScreen.style.display = 'none';
-    waitingRoom.style.display = 'none';
+    // Show host/join screen first
+    if (hostJoinScreen) hostJoinScreen.style.display = 'block';
+    if (hostSettingsScreen) hostSettingsScreen.style.display = 'none';
+    if (joinSettingsScreen) joinSettingsScreen.style.display = 'none';
+    if (categoryScreen) categoryScreen.style.display = 'none';
+    if (settingsScreen) settingsScreen.style.display = 'none';
+    if (waitingRoom) waitingRoom.style.display = 'none';
     
     updateTotalPicksDisplay();
 }
