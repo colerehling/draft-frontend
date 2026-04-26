@@ -11,7 +11,6 @@ const SOCKET_URL = isDevelopment
     : 'https://draft-backend-f40v.onrender.com';
 
 console.log('=== DRAFT PAGE LOADED ===');
-console.log('Socket URL:', SOCKET_URL);
 
 // Game state
 let MASTER_ITEMS = [];
@@ -40,12 +39,12 @@ let isMyTurn = false;
 let roomCode = null;
 let isHost = false;
 let playersData = [];
+let myPlayerName = '';
 
 // ==================== CHECK GAME MODE ====================
 
 function checkGameMode() {
     const multiplayerData = localStorage.getItem('multiplayerDraft');
-    console.log('multiplayerData exists?', !!multiplayerData);
     
     if (multiplayerData) {
         try {
@@ -86,6 +85,17 @@ function loadDraftConfig() {
         numRounds = state.numRounds;
         timerMinutes = Math.floor(state.timerSeconds / 60);
         
+        // Find my player name
+        if (isHost) {
+            myPlayerName = 'Host';
+        } else {
+            // For joiner, find name from stored data
+            const storedName = localStorage.getItem('myPlayerName');
+            myPlayerName = storedName || playersData.find(p => p.name !== 'Host')?.name || 'Player';
+        }
+        
+        console.log('My player name:', myPlayerName);
+        
         itemsWithScores = {};
         state.itemsWithScores.forEach(item => {
             itemsWithScores[item.item_name] = item.score;
@@ -101,7 +111,6 @@ function loadDraftConfig() {
         TIMER_DURATION = state.timerSeconds;
         timeRemaining = TIMER_DURATION;
         
-        // Update UI
         document.getElementById('categoryTitle').innerHTML = '📦 ' + currentCategoryName;
         
         const titleElement = document.querySelector('h1');
@@ -206,7 +215,7 @@ function generateDraftOrder() {
 // ==================== MULTIPLAYER SETUP ====================
 
 function initMultiplayerSocket() {
-    console.log('🔌 Creating socket connection to:', SOCKET_URL);
+    console.log('🔌 Creating socket connection');
     
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
@@ -214,25 +223,24 @@ function initMultiplayerSocket() {
         reconnection: true
     });
     
-    // Set up all event listeners FIRST before emitting
-    setupSocketEventListeners();
-    
-    // Then connect (the 'connect' event will fire after setup)
-}
-
-function setupSocketEventListeners() {
     socket.on('connect', () => {
-    console.log('✅ Socket CONNECTED! ID:', socket.id);
-    mySocketId = socket.id;
-    
-    // First, try to update the server with our new socket ID
-    socket.emit('syncPlayerId', { roomCode: roomCode, newSocketId: socket.id });
-    
-    socket.emit('joinGameRoom', roomCode);
-});
-    
-    socket.on('connect_error', (error) => {
-        console.error('❌ Connection error:', error);
+        console.log('✅ Socket connected! ID:', socket.id);
+        
+        // Load stored socket ID from lobby
+        const storedSocketId = localStorage.getItem('mySocketId');
+        if (storedSocketId && storedSocketId !== socket.id) {
+            console.log('📡 Syncing player ID with server...');
+            socket.emit('syncPlayerId', {
+                roomCode: roomCode,
+                oldSocketId: storedSocketId,
+                newSocketId: socket.id
+            });
+        }
+        
+        // Update stored socket ID
+        localStorage.setItem('mySocketId', socket.id);
+        
+        socket.emit('joinGameRoom', roomCode);
     });
     
     socket.on('disconnect', () => {
@@ -240,26 +248,28 @@ function setupSocketEventListeners() {
     });
     
     socket.on('draftStarted', (state) => {
-        console.log('🎯🎯🎯 DRAFT STARTED EVENT! 🎯🎯🎯');
+        console.log('🎯 DRAFT STARTED!');
         showToast('Draft has started!', 2000);
     });
     
     socket.on('turnChange', (data) => {
-        console.log('🔄🔄🔄 TURN CHANGE EVENT! 🔄🔄🔄');
-        console.log('Data:', data);
-        console.log('My socket ID:', socket.id);
-        console.log('Expected player ID:', data.playerId);
+        console.log('🔄 TURN CHANGE:', data);
         
-        isMyTurn = (socket.id === data.playerId);
+        // Compare by player name instead of socket ID
+        const currentPlayerName = data.playerName;
+        isMyTurn = (currentPlayerName === myPlayerName);
+        
+        console.log('Current player:', currentPlayerName);
+        console.log('My name:', myPlayerName);
         console.log('Is my turn?', isMyTurn);
         
         if (isMyTurn) {
-            console.log('✅✅✅ IT IS MY TURN! Starting timer and enabling picks');
+            console.log('✅ IT IS MY TURN!');
             startTimer(data.timeRemaining);
             renderGame();
             showToast('🔥 YOUR TURN! Pick an item! 🔥', 4000);
         } else {
-            console.log('⏳ Not my turn. Waiting for:', data.playerName);
+            console.log('⏳ Not my turn');
             stopTimer();
             renderGame();
             showToast(`${data.playerName}'s turn`, 2000);
@@ -287,41 +297,23 @@ function setupSocketEventListeners() {
         console.error('❌ Start draft error:', error);
         showToast(error, 3000);
     });
-    
-    socket.on('playerJoined', (players) => {
-        console.log('👥 Player list update:', players);
-    });
-    
-    socket.on('playerReadyUpdate', (players) => {
-        console.log('✅ Ready update:', players);
-    });
-    
-    socket.on('allPlayersReady', () => {
-        console.log('🎉 All players ready!');
-    });
 }
 
 function applyMultiplayerPick(data) {
-    console.log('Applying pick:', data);
-    
-    // Remove from available items
     const itemIndex = availableItems.indexOf(data.item);
     if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
     
-    // Find which player made the pick
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
-        if (playersData[i].id === data.playerId) {
+        if (playersData[i].name === data.playerName) {
             playerIndex = i;
             break;
         }
     }
     
-    // Add to player's items
     if (playerIndex !== -1 && playerIndex < playersItems.length) {
         const score = itemsWithScores[data.item] || 0;
         playersItems[playerIndex].push({ name: data.item, score: score });
-        console.log(`Added ${data.item} to ${playersData[playerIndex].name}`);
     }
     
     currentPickIndex++;
@@ -335,15 +327,13 @@ function applyMultiplayerPick(data) {
 // ==================== PERFORM DRAFT ====================
 
 function performDraft(item) {
-    console.log('performDraft - isMultiplayer:', isMultiplayer, 'isMyTurn:', isMyTurn);
-    
     if (isMultiplayer) {
         if (!isMyTurn) {
             showToast("Not your turn!", 2000);
             return false;
         }
         if (!socket || !socket.connected) {
-            showToast("Not connected to server!", 2000);
+            showToast("Not connected!", 2000);
             return false;
         }
         console.log('📤 Sending pick:', item);
@@ -387,8 +377,6 @@ function performDraft(item) {
 // ==================== TIMER ====================
 
 function startTimer(duration = null) {
-    console.log('startTimer called with duration:', duration);
-    
     if (timerInterval) clearInterval(timerInterval);
     
     if (duration !== null) {
@@ -526,19 +514,16 @@ function renderGame() {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
-    // Update round indicator
     if (roundIndicator) {
         roundIndicator.textContent = isDraftComplete 
             ? '🏁 Draft Complete! 🏁'
             : `Round ${currentRound} of ${numRounds} | Pick ${currentPickIndex + 1} of ${totalPicks}`;
     }
     
-    // Update pool count
     if (poolCountSpan) {
         poolCountSpan.innerText = `${availableItems.length} items (${totalPicks - currentPickIndex} picks left)`;
     }
     
-    // Render available items
     if (availableContainer) {
         if (availableItems.length === 0 || isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -564,7 +549,6 @@ function renderGame() {
         }
     }
     
-    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -592,7 +576,6 @@ function renderGame() {
         }
     }
     
-    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -617,6 +600,8 @@ function newDraft() {
     stopTimer();
     localStorage.removeItem('draftConfig');
     localStorage.removeItem('multiplayerDraft');
+    localStorage.removeItem('mySocketId');
+    localStorage.removeItem('myPlayerName');
     window.location.href = 'index.html';
 }
 
@@ -662,7 +647,6 @@ function init() {
     if (!loadDraftConfig()) return;
     setupEventListeners();
     
-    // Show waiting message for multiplayer
     if (isMultiplayer) {
         showToast('Waiting for game to start...', 3000);
     }

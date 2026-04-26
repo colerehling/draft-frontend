@@ -283,6 +283,11 @@ function initSocketConnection() {
     
     socket.on('connect', () => {
         console.log('Socket connected! ID:', socket.id);
+        
+        // ✅ STORE THE SOCKET ID FOR LATER USE IN DRAFT PAGE
+        localStorage.setItem('mySocketId', socket.id);
+        console.log('Stored socket ID in localStorage:', socket.id);
+        
         showToast('Connected to game server!', 2000);
         
         if (isHost) {
@@ -347,6 +352,12 @@ function initSocketConnection() {
     
     socket.on('draftStarted', (draftState) => {
         console.log('Draft started!', draftState);
+        
+        // ✅ STORE PLAYER NAME FOR THE DRAFT PAGE
+        if (isHost) {
+            localStorage.setItem('myPlayerName', 'Host');
+        }
+        
         localStorage.setItem('multiplayerDraft', JSON.stringify({
             isMultiplayer: true,
             roomCode: currentRoomCode,
@@ -428,6 +439,9 @@ function setupWaitingRoomButtons() {
         const newCancelBtn = cancelHostGameBtn.cloneNode(true);
         cancelHostGameBtn.parentNode.replaceChild(newCancelBtn, cancelHostGameBtn);
         newCancelBtn.addEventListener('click', () => {
+            // Clear stored data
+            localStorage.removeItem('mySocketId');
+            localStorage.removeItem('myPlayerName');
             window.location.reload();
         });
     }
@@ -515,6 +529,10 @@ if (hostOption) {
         hostJoinScreen.style.display = 'none';
         hostSettingsScreen.style.display = 'block';
         
+        // Clear any stored data from previous sessions
+        localStorage.removeItem('mySocketId');
+        localStorage.removeItem('myPlayerName');
+        
         // Reset host settings
         hostNumPlayers = 2;
         hostNumRounds = 5;
@@ -546,6 +564,10 @@ if (joinOption) {
         gameMode = 'online';
         hostJoinScreen.style.display = 'none';
         joinSettingsScreen.style.display = 'block';
+        
+        // Clear any stored data from previous sessions
+        localStorage.removeItem('mySocketId');
+        localStorage.removeItem('myPlayerName');
     });
 }
 
@@ -648,6 +670,9 @@ if (joinGameBtn) {
             return;
         }
         
+        // ✅ STORE PLAYER NAME FOR LATER USE
+        localStorage.setItem('myPlayerName', playerName);
+        
         // Initialize socket and join
         socket = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
@@ -656,6 +681,10 @@ if (joinGameBtn) {
         
         socket.on('connect', () => {
             console.log('Socket connected! ID:', socket.id);
+            
+            // ✅ STORE THE SOCKET ID
+            localStorage.setItem('mySocketId', socket.id);
+            
             socket.emit('joinGame', { roomCode, playerName }, (response) => {
                 if (response.success) {
                     currentRoomCode = response.roomCode;
@@ -671,6 +700,16 @@ if (joinGameBtn) {
         socket.on('connect_error', (error) => {
             console.error('Socket error:', error);
             showToast('Error connecting to server', 3000);
+        });
+        
+        socket.on('draftStarted', (draftState) => {
+            localStorage.setItem('multiplayerDraft', JSON.stringify({
+                isMultiplayer: true,
+                roomCode: currentRoomCode,
+                isHost: false,
+                draftState: draftState
+            }));
+            window.location.href = 'draft.html';
         });
     });
 }
