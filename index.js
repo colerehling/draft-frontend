@@ -259,7 +259,7 @@ function updatePlayersList(players) {
 function createGameRoom() {
     const gameConfig = {
         numPlayers: numPlayers,
-        category: selectedCategory,
+        category: selectedCategory,  // Make sure this is NOT null
         categoryName: selectedCategoryName,
         numRounds: numRounds,
         timerMinutes: timerMinutes,
@@ -268,6 +268,14 @@ function createGameRoom() {
     };
     
     console.log('Creating game with config:', gameConfig);
+    console.log('Selected category:', selectedCategory);
+    console.log('Category name:', selectedCategoryName);
+
+    if (!gameConfig.category) {
+        console.error('No category selected!');
+        showToast('Please select a category first', 3000);
+        return;
+    }
     
     socket.emit('createGame', gameConfig, (response) => {
         if (response.success) {
