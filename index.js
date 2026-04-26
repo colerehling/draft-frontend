@@ -26,6 +26,11 @@ let selectedCategoryName = null;
 let selectedCategoryCount = 0;
 let draftType = 'snake';
 
+// Store category temporarily when navigating
+let tempCategory = null;
+let tempCategoryName = null;
+let tempCategoryCount = 0;
+
 // DOM Elements
 const hostJoinScreen = document.getElementById('hostJoinScreen');
 const hostSettingsScreen = document.getElementById('hostSettingsScreen');
@@ -257,9 +262,26 @@ function updatePlayersList(players) {
 }
 
 function createGameRoom() {
+    // Use tempCategory if selectedCategory is null
+    if (!selectedCategory && tempCategory) {
+        selectedCategory = tempCategory;
+        selectedCategoryName = tempCategoryName;
+        selectedCategoryCount = tempCategoryCount;
+    }
+    
+    if (!selectedCategory) {
+        console.error('No category selected!');
+        showToast('Please select a category first', 3000);
+        // Go back to category selection
+        hostSettingsScreen.style.display = 'none';
+        categoryScreen.style.display = 'block';
+        loadCategories();
+        return;
+    }
+    
     const gameConfig = {
         numPlayers: numPlayers,
-        category: selectedCategory,  // Make sure this is NOT null
+        category: selectedCategory,
         categoryName: selectedCategoryName,
         numRounds: numRounds,
         timerMinutes: timerMinutes,
@@ -269,13 +291,6 @@ function createGameRoom() {
     
     console.log('Creating game with config:', gameConfig);
     console.log('Selected category:', selectedCategory);
-    console.log('Category name:', selectedCategoryName);
-
-    if (!gameConfig.category) {
-        console.error('No category selected!');
-        showToast('Please select a category first', 3000);
-        return;
-    }
     
     socket.emit('createGame', gameConfig, (response) => {
         if (response.success) {
@@ -436,29 +451,80 @@ function displayCategories(categories) {
         card.appendChild(countDiv);
         
         card.addEventListener('click', () => {
-            selectCategory(cat.table_name, formatCategoryName(cat.table_name), cat.item_count);
+            // Store in temp variables first
+            tempCategory = cat.table_name;
+            tempCategoryName = formatCategoryName(cat.table_name);
+            tempCategoryCount = cat.item_count;
+            
+            // Also set the main variables
+            selectedCategory = tempCategory;
+            selectedCategoryName = tempCategoryName;
+            selectedCategoryCount = tempCategoryCount;
+            
+            console.log('Category selected:', selectedCategory, selectedCategoryName);
+            showToast(`Selected: ${selectedCategoryName}`, 1500);
+            
+            // Determine where to go based on game mode and user type
+            if (gameMode === 'online' && isHost) {
+                // For host in online mode, go back to host settings
+                categoryScreen.style.display = 'none';
+                hostSettingsScreen.style.display = 'block';
+                
+                // Add visual feedback that category is selected
+                updateSelectedCategoryDisplay();
+            } else {
+                // For local game, go to draft settings
+                categoryScreen.style.display = 'none';
+                settingsScreen.style.display = 'block';
+                updateTotalPicksDisplay();
+            }
         });
         
         categoryGrid.appendChild(card);
     });
 }
 
-function selectCategory(category, categoryName, itemCount) {
-    selectedCategory = category;
-    selectedCategoryName = categoryName;
-    selectedCategoryCount = itemCount;
+function updateSelectedCategoryDisplay() {
+    const hostSettingsContent = document.querySelector('#hostSettingsScreen .config-content');
+    if (!hostSettingsContent) return;
     
-    const categoryNameDisplay = document.getElementById('categoryNameDisplay');
-    const gameModeDisplay = document.getElementById('gameModeDisplay');
-    
-    if (categoryNameDisplay) categoryNameDisplay.textContent = categoryName;
-    if (gameModeDisplay) {
-        gameModeDisplay.textContent = gameMode === 'local' ? '🏠 Local Game' : '🌐 Online Game';
+    // Remove existing display if any
+    const existingDisplay = document.getElementById('selectedCategoryDisplay');
+    if (existingDisplay) {
+        existingDisplay.remove();
     }
     
-    categoryScreen.style.display = 'none';
-    settingsScreen.style.display = 'block';
-    updateTotalPicksDisplay();
+    if (selectedCategoryName) {
+        const displayDiv = document.createElement('div');
+        displayDiv.id = 'selectedCategoryDisplay';
+        displayDiv.className = 'config-card';
+        displayDiv.style.background = '#10b98120';
+        displayDiv.style.border = '1px solid #10b981';
+        displayDiv.innerHTML = `
+            <label class="config-label">
+                <span class="label-icon">🎯</span>
+                Selected Category
+            </label>
+            <div style="font-size: 18px; font-weight: bold; color: #10b981; padding: 10px 0;">
+                ${selectedCategoryName} (${selectedCategoryCount} items)
+            </div>
+            <button id="changeCategoryBtn" class="secondary-btn" style="margin-top: 10px;">Change Category</button>
+        `;
+        
+        // Insert after the first config-card
+        const firstCard = hostSettingsContent.querySelector('.config-card');
+        if (firstCard) {
+            firstCard.insertAdjacentElement('afterend', displayDiv);
+        } else {
+            hostSettingsContent.appendChild(displayDiv);
+        }
+        
+        document.getElementById('changeCategoryBtn')?.addEventListener('click', () => {
+            hostSettingsScreen.style.display = 'none';
+            categoryScreen.style.display = 'block';
+            loadCategories();
+        });
+    }
 }
 
 async function startDraft() {
@@ -471,6 +537,7 @@ async function startDraft() {
     const selectedDraftType = getSelectedDraftType();
     
     if (gameMode === 'online' && isHost) {
+        // For online host, save config and return - will be used in createGameRoom
         const gameConfig = {
             numPlayers: numPlayers,
             category: selectedCategory,
@@ -483,6 +550,7 @@ async function startDraft() {
         return;
     }
     
+    // Local game
     try {
         const response = await fetch(`${API_BASE_URL}/items/${selectedCategory}/with-scores`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -516,6 +584,14 @@ if (hostOption) {
         gameMode = 'online';
         hostJoinScreen.style.display = 'none';
         hostSettingsScreen.style.display = 'block';
+        
+        // Reset temp category when starting new host flow
+        tempCategory = null;
+        tempCategoryName = null;
+        tempCategoryCount = 0;
+        selectedCategory = null;
+        selectedCategoryName = null;
+        selectedCategoryCount = 0;
     });
 }
 
@@ -567,8 +643,22 @@ if (continueToCategoryBtn) {
         gameMode = getSelectedGameMode();
         
         if (gameMode === 'online' && isHost) {
-            initSocketConnection();
-            setTimeout(() => createGameRoom(), 500);
+            // Check if category is already selected
+            if (!selectedCategory && !tempCategory) {
+                // No category selected yet, go to category selection
+                hostSettingsScreen.style.display = 'none';
+                categoryScreen.style.display = 'block';
+                loadCategories();
+            } else {
+                // Category already selected, initialize socket and create game
+                if (!selectedCategory && tempCategory) {
+                    selectedCategory = tempCategory;
+                    selectedCategoryName = tempCategoryName;
+                    selectedCategoryCount = tempCategoryCount;
+                }
+                initSocketConnection();
+                setTimeout(() => createGameRoom(), 500);
+            }
         } else {
             hostSettingsScreen.style.display = 'none';
             categoryScreen.style.display = 'block';
