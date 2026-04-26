@@ -222,10 +222,14 @@ function initMultiplayerSocket() {
 
 function setupSocketEventListeners() {
     socket.on('connect', () => {
-        console.log('✅ Socket CONNECTED! ID:', socket.id);
-        console.log('📡 Joining room:', roomCode);
-        socket.emit('joinGameRoom', roomCode);
-    });
+    console.log('✅ Socket CONNECTED! ID:', socket.id);
+    mySocketId = socket.id;
+    
+    // First, try to update the server with our new socket ID
+    socket.emit('syncPlayerId', { roomCode: roomCode, newSocketId: socket.id });
+    
+    socket.emit('joinGameRoom', roomCode);
+});
     
     socket.on('connect_error', (error) => {
         console.error('❌ Connection error:', error);
