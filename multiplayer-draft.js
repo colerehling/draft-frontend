@@ -67,13 +67,31 @@ function initSocket() {
     });
     
     socket.on('pickMade', (data) => {
-        console.log('Pick made:', data);
+        console.log('Pick made received:', data);
         applyPick(data);
     });
     
     socket.on('turnChange', (data) => {
         console.log('Turn change received:', data);
-        updateTurn(data);
+        console.log('My socket ID:', socket.id);
+        console.log('Current player ID:', data.playerId);
+        
+        isMyTurn = (socket.id === data.playerId);
+        console.log('Is my turn?', isMyTurn);
+        
+        draftState.currentPlayer = { id: data.playerId, name: data.playerName };
+        
+        renderGame();
+        
+        if (isMyTurn) {
+            const minutes = Math.floor(data.timeRemaining / 60);
+            const seconds = data.timeRemaining % 60;
+            showToast(`YOUR TURN! You have ${minutes}:${seconds.toString().padStart(2, '0')} to pick`, 5000);
+            startTimer(data.timeRemaining);
+        } else {
+            stopTimer();
+            showToast(`${data.playerName}'s turn`, 2000);
+        }
     });
     
     socket.on('draftComplete', (results) => {
@@ -93,11 +111,6 @@ function initSocket() {
         draftState = state;
         renderGame();
         showToast('Draft has started!', 2000);
-    });
-    
-    socket.on('timerSync', (remaining) => {
-        console.log('Timer sync:', remaining);
-        updateTimerDisplay(remaining);
     });
 }
 
@@ -124,30 +137,6 @@ function applyPick(data) {
     
     // Update UI
     renderGame();
-    updatePoolCount();
-}
-
-// Update turn
-function updateTurn(data) {
-    console.log('Updating turn, my socket ID:', socket?.id);
-    console.log('Current player ID:', data.playerId);
-    
-    isMyTurn = (socket && socket.id === data.playerId);
-    console.log('Is my turn?', isMyTurn);
-    
-    draftState.currentPlayer = { id: data.playerId, name: data.playerName };
-    
-    renderGame();
-    
-    if (isMyTurn) {
-        const minutes = Math.floor(data.timeRemaining / 60);
-        const seconds = data.timeRemaining % 60;
-        showToast(`YOUR TURN! You have ${minutes}:${seconds.toString().padStart(2, '0')} to pick`, 3000);
-        startTimer(data.timeRemaining);
-    } else {
-        stopTimer();
-        showToast(`${data.playerName}'s turn`, 2000);
-    }
 }
 
 // Timer functions
@@ -187,27 +176,14 @@ function updateTimerDisplay(seconds) {
     
     if (timerBarFill) {
         timerBarFill.style.width = `${percentage}%`;
-        
-        if (percentage <= 20) {
-            timerBarFill.classList.add('critical');
-            timerBarFill.classList.remove('warning');
-        } else if (percentage <= 50) {
-            timerBarFill.classList.add('warning');
-            timerBarFill.classList.remove('critical');
-        } else {
-            timerBarFill.classList.remove('warning', 'critical');
-        }
     }
     
     if (seconds <= 10) {
         timerDisplay.style.color = '#ef4444';
-        timerDisplay.style.animation = 'pulse 1s infinite';
     } else if (seconds <= 30) {
         timerDisplay.style.color = '#f97316';
-        timerDisplay.style.animation = 'none';
     } else {
         timerDisplay.style.color = '#facc15';
-        timerDisplay.style.animation = 'none';
     }
 }
 
@@ -234,6 +210,8 @@ function makePick(itemName) {
 
 // Render game UI
 function renderGame() {
+    if (!draftState) return;
+    
     console.log('Rendering game, isMyTurn:', isMyTurn);
     
     categoryTitle.innerHTML = `📦 ${draftState.categoryName || draftState.category}`;
@@ -266,58 +244,50 @@ function renderGame() {
         });
     }
     
-    updatePoolCount();
-    renderAvailableItems();
-    updateTurnMessage();
-}
-
-function updatePoolCount() {
+    // Update pool count
     if (poolCountSpan) {
         const picksLeft = draftState.draftOrder.length - draftState.currentPickIndex;
         poolCountSpan.innerText = `${draftState.availableItems.length} items (${picksLeft} picks left)`;
     }
-}
-
-function renderAvailableItems() {
-    if (!availableList) return;
     
-    if (draftState.availableItems.length === 0) {
-        availableList.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
-        return;
-    }
-    
-    availableList.innerHTML = '';
-    draftState.availableItems.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'draft-card';
-        
-        const scoreItem = draftState.itemsWithScores.find(i => i.item_name === item);
-        const score = scoreItem ? scoreItem.score : 0;
-        
-        card.innerHTML = `
-            <div class="item-info">
-                <span class="item-name">${escapeHtml(item)}</span>
-                <span class="item-score">⭐ ${score}</span>
-            </div>
-            <button class="draft-btn ${isMyTurn ? 'active-turn' : ''}" ${!isMyTurn ? 'disabled' : ''}>
-                ${isMyTurn ? '⚡ Draft' : '🔒 Locked'}
-            </button>
-        `;
-        
-        const btn = card.querySelector('.draft-btn');
-        if (isMyTurn) {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                console.log('Draft button clicked for:', item);
-                makePick(item);
+    // Render available items
+    if (availableList) {
+        if (draftState.availableItems.length === 0) {
+            availableList.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
+        } else {
+            availableList.innerHTML = '';
+            draftState.availableItems.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'draft-card';
+                
+                const scoreItem = draftState.itemsWithScores.find(i => i.item_name === item);
+                const score = scoreItem ? scoreItem.score : 0;
+                
+                card.innerHTML = `
+                    <div class="item-info">
+                        <span class="item-name">${escapeHtml(item)}</span>
+                        <span class="item-score">⭐ ${score}</span>
+                    </div>
+                    <button class="draft-btn ${isMyTurn ? 'active-turn' : ''}" ${!isMyTurn ? 'disabled' : ''}>
+                        ${isMyTurn ? '⚡ Draft' : '🔒 Locked'}
+                    </button>
+                `;
+                
+                const btn = card.querySelector('.draft-btn');
+                if (isMyTurn) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        console.log('Draft button clicked for:', item);
+                        makePick(item);
+                    });
+                }
+                
+                availableList.appendChild(card);
             });
         }
-        
-        availableList.appendChild(card);
-    });
-}
-
-function updateTurnMessage() {
+    }
+    
+    // Update turn message
     if (activePlayerNameSpan) {
         activePlayerNameSpan.innerText = draftState.currentPlayer?.name || 'Waiting...';
     }
@@ -372,7 +342,6 @@ function init() {
     console.log('Initializing multiplayer draft page');
     console.log('Is host:', isHost);
     console.log('Room code:', roomCode);
-    console.log('Draft state:', draftState);
     
     draftTitle.innerHTML = isHost ? '👑 HOSTING DRAFT' : '🎮 MULTIPLAYER DRAFT';
     draftSubtitle.innerHTML = `Room: ${roomCode} | ${draftState.categoryName || draftState.category}`;
@@ -380,15 +349,5 @@ function init() {
     renderGame();
     initSocket();
 }
-
-// Add CSS animation
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-    }
-`;
-document.head.appendChild(style);
 
 document.addEventListener('DOMContentLoaded', init);
