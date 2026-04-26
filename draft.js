@@ -1,4 +1,4 @@
-// Determine if we're in development or production
+// Determine environment
 const isDevelopment = window.location.hostname === 'localhost' || 
                       window.location.hostname === '127.0.0.1';
 
@@ -10,9 +10,10 @@ const SOCKET_URL = isDevelopment
     ? 'http://localhost:3000'
     : 'https://draft-backend-f40v.onrender.com';
 
+console.log('=== DRAFT PAGE LOADED ===');
 console.log('Socket URL:', SOCKET_URL);
 
-// Game state variables
+// Game state
 let MASTER_ITEMS = [];
 let itemsWithScores = {};
 let availableItems = [];
@@ -26,43 +27,42 @@ let timerMinutes = 3;
 let totalPicks = 0;
 let currentCategory = null;
 let currentCategoryName = '';
-let draftType = 'snake';
 
-// Timer variables
+// Timer
 let timerInterval = null;
 let timeRemaining = 180;
 let TIMER_DURATION = 180;
 
-// Multiplayer variables
+// Multiplayer
 let socket = null;
 let isMultiplayer = false;
 let isMyTurn = false;
 let roomCode = null;
 let isHost = false;
-let mySocketId = null;
 let playersData = [];
-let draftStarted = false;
 
 // ==================== CHECK GAME MODE ====================
 
 function checkGameMode() {
     const multiplayerData = localStorage.getItem('multiplayerDraft');
+    console.log('multiplayerData exists?', !!multiplayerData);
+    
     if (multiplayerData) {
         try {
             const data = JSON.parse(multiplayerData);
             isMultiplayer = true;
             isHost = data.isHost;
             roomCode = data.roomCode;
-            console.log('Multiplayer mode - isHost:', isHost, 'roomCode:', roomCode);
+            console.log('✅ Multiplayer mode - isHost:', isHost, 'roomCode:', roomCode);
             return true;
         } catch (e) {
-            console.error('Error parsing multiplayer data:', e);
+            console.error('Error parsing:', e);
         }
     }
     
     const localConfig = localStorage.getItem('draftConfig');
     if (localConfig) {
-        console.log('Local mode detected');
+        console.log('✅ Local mode detected');
         isMultiplayer = false;
         return true;
     }
@@ -72,9 +72,12 @@ function checkGameMode() {
 
 function loadDraftConfig() {
     const multiplayerData = localStorage.getItem('multiplayerDraft');
+    
     if (multiplayerData) {
         const parsed = JSON.parse(multiplayerData);
         const state = parsed.draftState;
+        
+        console.log('Loading multiplayer state');
         
         playersData = state.players;
         numPlayers = state.players.length;
@@ -98,6 +101,7 @@ function loadDraftConfig() {
         TIMER_DURATION = state.timerSeconds;
         timeRemaining = TIMER_DURATION;
         
+        // Update UI
         document.getElementById('categoryTitle').innerHTML = '📦 ' + currentCategoryName;
         
         const titleElement = document.querySelector('h1');
@@ -114,9 +118,10 @@ function loadDraftConfig() {
         return true;
     }
     
+    // Local game
     const config = localStorage.getItem('draftConfig');
     if (!config) {
-        showToast('No draft configuration found...');
+        showToast('No draft config found');
         setTimeout(() => window.location.href = 'index.html', 2000);
         return false;
     }
@@ -127,7 +132,6 @@ function loadDraftConfig() {
     currentCategoryName = parsed.categoryName;
     numRounds = parsed.numRounds;
     timerMinutes = parsed.timerMinutes || 3;
-    draftType = parsed.draftType || 'snake';
     
     TIMER_DURATION = timerMinutes * 60;
     timeRemaining = TIMER_DURATION;
@@ -166,25 +170,9 @@ async function loadItemsForLocal() {
             startLocalDraft();
         }
     } catch (error) {
-        console.error('Error loading items:', error);
-        showToast('Error loading category items', 3000);
+        console.error('Error:', error);
+        showToast('Error loading items', 3000);
     }
-}
-
-function generateDraftOrder() {
-    const order = [];
-    for (let round = 1; round <= numRounds; round++) {
-        if (draftType === 'regular') {
-            for (let i = 0; i < numPlayers; i++) order.push({ playerIndex: i, round: round });
-        } else {
-            if (round % 2 === 1) {
-                for (let i = 0; i < numPlayers; i++) order.push({ playerIndex: i, round: round });
-            } else {
-                for (let i = numPlayers - 1; i >= 0; i--) order.push({ playerIndex: i, round: round });
-            }
-        }
-    }
-    return order;
 }
 
 function startLocalDraft() {
@@ -200,13 +188,25 @@ function startLocalDraft() {
     shuffleArray(availableItems);
     renderGame();
     startTimer();
-    showToast(`Local draft started! ${numPlayers} players, ${numRounds} rounds.`);
+    showToast(`Local draft started!`);
 }
 
-// ==================== MULTIPLAYER ====================
+function generateDraftOrder() {
+    const order = [];
+    for (let round = 1; round <= numRounds; round++) {
+        if (round % 2 === 1) {
+            for (let i = 0; i < numPlayers; i++) order.push({ playerIndex: i, round: round });
+        } else {
+            for (let i = numPlayers - 1; i >= 0; i--) order.push({ playerIndex: i, round: round });
+        }
+    }
+    return order;
+}
+
+// ==================== MULTIPLAYER SETUP ====================
 
 function initMultiplayerSocket() {
-    console.log('Initializing multiplayer socket...');
+    console.log('🔌 Creating socket connection to:', SOCKET_URL);
     
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
@@ -214,33 +214,43 @@ function initMultiplayerSocket() {
         reconnection: true
     });
     
+    // Set up all event listeners FIRST before emitting
+    setupSocketEventListeners();
+    
+    // Then connect (the 'connect' event will fire after setup)
+}
+
+function setupSocketEventListeners() {
     socket.on('connect', () => {
-        console.log('✅ Socket connected! ID:', socket.id);
-        mySocketId = socket.id;
+        console.log('✅ Socket CONNECTED! ID:', socket.id);
+        console.log('📡 Joining room:', roomCode);
         socket.emit('joinGameRoom', roomCode);
     });
     
     socket.on('connect_error', (error) => {
-        console.error('Socket error:', error);
-        showToast('Connection lost!', 3000);
+        console.error('❌ Connection error:', error);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('❌ Disconnected');
     });
     
     socket.on('draftStarted', (state) => {
-        console.log('📢 Draft started event received!');
-        draftStarted = true;
-        renderGame();
-        showToast('Draft has started! Waiting for your turn...', 2000);
+        console.log('🎯🎯🎯 DRAFT STARTED EVENT! 🎯🎯🎯');
+        showToast('Draft has started!', 2000);
     });
     
     socket.on('turnChange', (data) => {
-        console.log('📢 TURN CHANGE RECEIVED:', data);
-        console.log('My socket ID:', mySocketId);
-        console.log('Is my turn?', mySocketId === data.playerId);
+        console.log('🔄🔄🔄 TURN CHANGE EVENT! 🔄🔄🔄');
+        console.log('Data:', data);
+        console.log('My socket ID:', socket.id);
+        console.log('Expected player ID:', data.playerId);
         
-        isMyTurn = (mySocketId === data.playerId);
+        isMyTurn = (socket.id === data.playerId);
+        console.log('Is my turn?', isMyTurn);
         
         if (isMyTurn) {
-            console.log('🔥 IT IS MY TURN! Starting timer...');
+            console.log('✅✅✅ IT IS MY TURN! Starting timer and enabling picks');
             startTimer(data.timeRemaining);
             renderGame();
             showToast('🔥 YOUR TURN! Pick an item! 🔥', 4000);
@@ -253,40 +263,61 @@ function initMultiplayerSocket() {
     });
     
     socket.on('pickMade', (data) => {
-        console.log('Pick made:', data);
+        console.log('📦 Pick made:', data);
         applyMultiplayerPick(data);
     });
     
     socket.on('draftComplete', (results) => {
-        console.log('Draft complete!');
+        console.log('🏆 Draft complete!');
         localStorage.setItem('draftResults', JSON.stringify(results));
-        showToast('Draft complete! Redirecting...');
+        showToast('Draft complete!');
         setTimeout(() => window.location.href = 'results.html', 2000);
     });
     
     socket.on('pickError', (error) => {
-        console.error('Pick error:', error);
+        console.error('❌ Pick error:', error);
         showToast(error, 2000);
     });
     
     socket.on('startDraftError', (error) => {
-        console.error('Start draft error:', error);
+        console.error('❌ Start draft error:', error);
         showToast(error, 3000);
+    });
+    
+    socket.on('playerJoined', (players) => {
+        console.log('👥 Player list update:', players);
+    });
+    
+    socket.on('playerReadyUpdate', (players) => {
+        console.log('✅ Ready update:', players);
+    });
+    
+    socket.on('allPlayersReady', () => {
+        console.log('🎉 All players ready!');
     });
 }
 
 function applyMultiplayerPick(data) {
+    console.log('Applying pick:', data);
+    
+    // Remove from available items
     const itemIndex = availableItems.indexOf(data.item);
     if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
     
+    // Find which player made the pick
     let playerIndex = -1;
-    if (currentPickIndex < draftOrder.length) {
-        playerIndex = draftOrder[currentPickIndex].playerIndex;
+    for (let i = 0; i < playersData.length; i++) {
+        if (playersData[i].id === data.playerId) {
+            playerIndex = i;
+            break;
+        }
     }
     
+    // Add to player's items
     if (playerIndex !== -1 && playerIndex < playersItems.length) {
         const score = itemsWithScores[data.item] || 0;
         playersItems[playerIndex].push({ name: data.item, score: score });
+        console.log(`Added ${data.item} to ${playersData[playerIndex].name}`);
     }
     
     currentPickIndex++;
@@ -297,7 +328,7 @@ function applyMultiplayerPick(data) {
     renderGame();
 }
 
-// ==================== CORE FUNCTIONS ====================
+// ==================== PERFORM DRAFT ====================
 
 function performDraft(item) {
     console.log('performDraft - isMultiplayer:', isMultiplayer, 'isMyTurn:', isMyTurn);
@@ -307,11 +338,11 @@ function performDraft(item) {
             showToast("Not your turn!", 2000);
             return false;
         }
-        if (!socket) {
-            showToast("Not connected!", 2000);
+        if (!socket || !socket.connected) {
+            showToast("Not connected to server!", 2000);
             return false;
         }
-        console.log('Sending pick:', item);
+        console.log('📤 Sending pick:', item);
         socket.emit('makePick', { roomCode: roomCode, itemName: item });
         return true;
     }
@@ -349,7 +380,11 @@ function performDraft(item) {
     return true;
 }
 
+// ==================== TIMER ====================
+
 function startTimer(duration = null) {
+    console.log('startTimer called with duration:', duration);
+    
     if (timerInterval) clearInterval(timerInterval);
     
     if (duration !== null) {
@@ -385,15 +420,12 @@ function updateTimerDisplay() {
         
         if (timeRemaining <= 10 && timeRemaining > 0) {
             timerDisplayEl.style.color = '#ef4444';
-            timerDisplayEl.style.animation = 'pulse 1s infinite';
         } else if (timeRemaining <= 30 && timeRemaining > 0) {
             timerDisplayEl.style.color = '#ef4444';
-            timerDisplayEl.style.animation = 'none';
         } else if (timeRemaining <= 60 && timeRemaining > 0) {
             timerDisplayEl.style.color = '#f97316';
         } else if (timeRemaining > 0) {
             timerDisplayEl.style.color = '#facc15';
-            timerDisplayEl.style.animation = 'none';
         }
     }
     
@@ -423,7 +455,7 @@ function makeRandomPick() {
     availableItems.splice(randomIndex, 1);
     playersItems[playerIndex].push({ name: randomItem, score: itemScore });
     
-    showToast('⏰ Random pick for ' + getPlayerName(playerIndex) + ': "' + randomItem + '"', 3000);
+    showToast('⏰ Random pick for ' + getPlayerName(playerIndex), 3000);
     currentPickIndex++;
     
     if (currentPickIndex >= draftOrder.length) {
@@ -444,19 +476,12 @@ function completeDraft() {
     }));
     results.sort((a, b) => b.totalScore - a.totalScore);
     
-    let currentPlace = 1, previousScore = null;
-    results.forEach((player, index) => {
-        if (previousScore !== null && player.totalScore < previousScore) currentPlace = index + 1;
-        player.place = currentPlace;
-        previousScore = player.totalScore;
-    });
-    
     localStorage.setItem('draftResults', JSON.stringify(results));
     localStorage.removeItem('multiplayerDraft');
     window.location.href = 'results.html';
 }
 
-// ==================== RENDER FUNCTIONS ====================
+// ==================== RENDER ====================
 
 function getCurrentPlayerIndex() {
     if (currentPickIndex >= draftOrder.length) return -1;
@@ -497,19 +522,22 @@ function renderGame() {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
+    // Update round indicator
     if (roundIndicator) {
         roundIndicator.textContent = isDraftComplete 
             ? '🏁 Draft Complete! 🏁'
             : `Round ${currentRound} of ${numRounds} | Pick ${currentPickIndex + 1} of ${totalPicks}`;
     }
     
+    // Update pool count
     if (poolCountSpan) {
         poolCountSpan.innerText = `${availableItems.length} items (${totalPicks - currentPickIndex} picks left)`;
     }
     
+    // Render available items
     if (availableContainer) {
         if (availableItems.length === 0 || isDraftComplete) {
-            availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete! Redirecting to results...</div>';
+            availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
         } else {
             availableContainer.innerHTML = '';
             availableItems.forEach(item => {
@@ -532,6 +560,7 @@ function renderGame() {
         }
     }
     
+    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -541,8 +570,6 @@ function renderGame() {
             
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
-            playerCol.id = `player${i + 1}Col`;
-            
             playerCol.innerHTML = `
                 <div class="player-header">
                     <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
@@ -550,9 +577,9 @@ function renderGame() {
                 </div>
                 <div class="drafted-list">
                     ${playersItems[i].length === 0 
-                        ? '<div class="empty-state">✨ Waiting for picks...</div>'
+                        ? '<div class="empty-state">✨ No picks yet</div>'
                         : playersItems[i].map((item, idx) => `
-                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)} <span class="item-score-small">⭐${item.score || 0}</span></div>
+                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)}</div>
                         `).join('')
                     }
                 </div>
@@ -561,6 +588,7 @@ function renderGame() {
         }
     }
     
+    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -569,40 +597,17 @@ function renderGame() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (isMultiplayer && isMyTurn) {
-                turnMessageSpan.innerHTML = '🎯 YOUR TURN! Click on an item to draft! 🎯';
+                turnMessageSpan.innerHTML = '🎯 YOUR TURN! Click on an item! 🎯';
                 turnMessageSpan.style.color = '#facc15';
-                turnMessageSpan.style.fontWeight = 'bold';
             } else {
-                turnMessageSpan.innerHTML = `${currentPlayerName}'s turn to draft...`;
+                turnMessageSpan.innerHTML = `${currentPlayerName}'s turn...`;
                 turnMessageSpan.style.color = '#94a3b8';
-                turnMessageSpan.style.fontWeight = 'normal';
             }
         }
     }
 }
 
 // ==================== UTILITY ====================
-
-function forceSkipTurn() {
-    if (currentPickIndex >= draftOrder.length) {
-        showToast("Draft is complete!");
-        return;
-    }
-    if (isMultiplayer && !isMyTurn) {
-        showToast("Not your turn!", 2000);
-        return;
-    }
-    stopTimer();
-    makeRandomPick();
-}
-
-function resetDraft() {
-    if (confirm('Reset the current draft? All progress will be lost.')) {
-        stopTimer();
-        if (isMultiplayer) window.location.reload();
-        else startLocalDraft();
-    }
-}
 
 function newDraft() {
     stopTimer();
@@ -634,23 +639,29 @@ function setupEventListeners() {
     const forceEndTurnBtn = document.getElementById('forceEndTurnBtn');
     
     if (backToStartBtn) backToStartBtn.addEventListener('click', () => newDraft());
-    if (resetGameBtn) resetGameBtn.addEventListener('click', () => resetDraft());
-    if (forceEndTurnBtn) forceEndTurnBtn.addEventListener('click', () => forceSkipTurn());
+    if (resetGameBtn) resetGameBtn.addEventListener('click', () => {
+        if (confirm('Reset draft?')) window.location.reload();
+    });
+    if (forceEndTurnBtn) forceEndTurnBtn.addEventListener('click', () => {
+        if (isMultiplayer && !isMyTurn) showToast("Not your turn!", 2000);
+        else if (timerInterval) makeRandomPick();
+    });
 }
 
 function init() {
-    console.log('Initializing draft page');
+    console.log('=== INITIALIZING DRAFT PAGE ===');
     if (!checkGameMode()) {
-        showToast('No draft configuration found. Redirecting...');
+        showToast('No draft config found. Redirecting...');
         setTimeout(() => window.location.href = 'index.html', 2000);
         return;
     }
     if (!loadDraftConfig()) return;
     setupEventListeners();
+    
+    // Show waiting message for multiplayer
+    if (isMultiplayer) {
+        showToast('Waiting for game to start...', 3000);
+    }
 }
-
-const style = document.createElement('style');
-style.textContent = `@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.7}}`;
-document.head.appendChild(style);
 
 document.addEventListener('DOMContentLoaded', init);
