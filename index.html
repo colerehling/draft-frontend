@@ -28,12 +28,14 @@
                 <div class="host-join-icon">👑</div>
                 <h3>Host a Draft</h3>
                 <p>Create a new draft game and invite friends to join</p>
+                <div class="host-join-note">You'll get a room code to share</div>
             </div>
             
             <div class="host-join-card" id="joinOption">
                 <div class="host-join-icon">🔗</div>
                 <h3>Join a Draft</h3>
                 <p>Enter a room code to join an existing draft</p>
+                <div class="host-join-note">Ask the host for the room code</div>
             </div>
         </div>
     </div>
@@ -47,57 +49,108 @@
         
         <div class="config-content">
             <div class="config-card">
-                <label class="config-label">👥 Number of Players (2-8)</label>
+                <div class="config-label">
+                    <span class="label-icon">👥</span>
+                    Number of Players (2-8)
+                </div>
                 <div class="config-control">
                     <button class="config-btn decrement" id="decPlayersHost">-</button>
                     <span id="numPlayersHost" class="config-value">2</span>
                     <button class="config-btn increment" id="incPlayersHost">+</button>
                 </div>
+                <div class="config-hint">More players = longer draft</div>
             </div>
 
             <div class="config-card">
-                <label class="config-label">🎯 Draft Category</label>
+                <div class="config-label">
+                    <span class="label-icon">🎯</span>
+                    Draft Category
+                </div>
                 <div id="categoryGridHost" class="category-grid-small"></div>
-                <div id="selectedCategoryDisplay" style="display: none;">
-                    <span>✅ Selected: <span id="selectedCategoryNameHost"></span></span>
-                    <button id="clearCategoryBtn">Change</button>
+                <div id="selectedCategoryDisplay" class="selected-category-display" style="display: none;">
+                    <span class="selected-category-badge">✅ Selected: <span id="selectedCategoryNameHost"></span></span>
+                    <button id="clearCategoryBtn" class="small-btn">Change</button>
                 </div>
+                <div class="config-hint">Choose what you'll be drafting</div>
             </div>
 
             <div class="config-card">
-                <label class="config-label">🎲 Draft Type</label>
+                <div class="config-label">
+                    <span class="label-icon">🎲</span>
+                    Draft Type
+                </div>
                 <div class="draft-type-options">
-                    <label><input type="radio" name="draftTypeHost" value="snake" checked> 🐍 Snake Draft</label>
-                    <label><input type="radio" name="draftTypeHost" value="regular"> 📋 Regular Draft</label>
+                    <label class="draft-type-option">
+                        <input type="radio" name="draftTypeHost" value="snake" checked>
+                        <span class="draft-type-icon">🐍</span>
+                        <span class="draft-type-name">Snake Draft</span>
+                        <span class="draft-type-desc">1,2,3,3,2,1,1,2,3...</span>
+                    </label>
+                    <label class="draft-type-option">
+                        <input type="radio" name="draftTypeHost" value="regular">
+                        <span class="draft-type-icon">📋</span>
+                        <span class="draft-type-name">Regular Draft</span>
+                        <span class="draft-type-desc">1,2,3,1,2,3,1,2,3...</span>
+                    </label>
                 </div>
             </div>
 
             <div class="config-card">
-                <label class="config-label">🔄 Number of Rounds (3-10)</label>
+                <div class="config-label">
+                    <span class="label-icon">🔄</span>
+                    Number of Rounds (3-10)
+                </div>
                 <div class="config-control">
                     <button class="config-btn decrement" id="decRoundsHost">-</button>
                     <span id="numRoundsHost" class="config-value">5</span>
                     <button class="config-btn increment" id="incRoundsHost">+</button>
                 </div>
+                <div class="config-hint">Each player gets 1 pick per round</div>
             </div>
 
             <div class="config-card">
-                <label class="config-label">⏱️ Time Per Pick (1-5 minutes)</label>
+                <div class="config-label">
+                    <span class="label-icon">⏱️</span>
+                    Time Per Pick (1-5 minutes)
+                </div>
                 <div class="config-control">
                     <button class="config-btn decrement" id="decTimeHost">-</button>
                     <span id="timerMinutesHost" class="config-value">3</span>
                     <button class="config-btn increment" id="incTimeHost">+</button>
                 </div>
+                <div class="config-hint">Time limit for each player's pick</div>
             </div>
 
             <div class="config-card highlight">
+                <div class="config-label">
+                    <span class="label-icon">📊</span>
+                    Draft Summary
+                </div>
                 <div class="config-stats">
-                    <div>👥 Players: <span id="summaryPlayers">2</span></div>
-                    <div>🎯 Category: <span id="summaryCategory">Not selected</span></div>
-                    <div>🎲 Type: <span id="summaryDraftType">Snake</span></div>
-                    <div>🔄 Rounds: <span id="summaryRounds">5</span></div>
-                    <div>⏱️ Timer: <span id="summaryTimer">3 min</span></div>
-                    <div>📦 Total Picks: <span id="summaryTotalPicks">10</span></div>
+                    <div class="stat-item">
+                        <span class="stat-label">👥 Players:</span>
+                        <span id="summaryPlayers" class="stat-value">2</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🎯 Category:</span>
+                        <span id="summaryCategory" class="stat-value">Not selected</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🎲 Draft Type:</span>
+                        <span id="summaryDraftType" class="stat-value">Snake</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🔄 Rounds:</span>
+                        <span id="summaryRounds" class="stat-value">5</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">⏱️ Timer:</span>
+                        <span id="summaryTimer" class="stat-value">3 min</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">📦 Total Picks:</span>
+                        <span id="summaryTotalPicks" class="stat-value">10</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -112,17 +165,25 @@
     <div id="joinSettingsScreen" class="config-screen" style="display: none;">
         <div class="config-header">
             <h2>🔗 Join a Game</h2>
-            <p>Enter the room code to join</p>
+            <p>Enter the room code to join an existing draft</p>
         </div>
         
         <div class="config-content">
             <div class="config-card">
-                <label class="config-label">🔑 Room Code</label>
+                <div class="config-label">
+                    <span class="label-icon">🔑</span>
+                    Room Code
+                </div>
                 <input type="text" id="roomCodeInput" placeholder="Enter 6-character code" maxlength="6" class="room-code-input">
+                <div class="config-hint">Get the code from the game host</div>
             </div>
             <div class="config-card">
-                <label class="config-label">👤 Your Name</label>
+                <div class="config-label">
+                    <span class="label-icon">👤</span>
+                    Your Name
+                </div>
                 <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="20" class="player-name-input">
+                <div class="config-hint">How other players will see you</div>
             </div>
         </div>
 
