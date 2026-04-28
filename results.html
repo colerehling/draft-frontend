@@ -3,40 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draft Game | Final Scores</title>
+    <title>Draft Results | Game Results</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="draft-app">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
-            <h1>SNAKE DRAFT</h1>
-            <div class="sub">Multiplayer snake draft · Timed picks · 2-8 players</div>
+            <h1>🏆 DRAFT RESULTS 🏆</h1>
+            <div class="sub">Final standings and scores</div>
         </div>
-        <div class="badge" id="dbStatus">✅ Ready</div>
+        <div class="badge" id="connectionStatus">✅ Complete</div>
     </div>
 
-    <!-- Final Score Screen -->
-    <div id="finalScoreScreen" class="final-score-screen">
-        <div class="final-score-header">
-            <h2>🏆 FINAL SCORES 🏆</h2>
-            <p>Here are the final results</p>
-        </div>
-        
-        <div id="finalScoreContent" class="final-score-content">
-            <!-- Scores will be populated here -->
-        </div>
-        
-        <div class="final-score-actions">
-            <button id="newDraftBtn" class="primary-btn">Start New Draft</button>
-        </div>
+    <!-- Summary Stats -->
+    <div id="summaryStats" class="summary-stats"></div>
+
+    <!-- Results Container -->
+    <div id="resultsContainer" class="results-container"></div>
+
+    <!-- Actions -->
+    <div class="results-actions">
+        <button id="newDraftBtn" class="primary-btn">🎮 New Draft</button>
+        <button id="homeBtn" class="secondary-btn">🏠 Home</button>
     </div>
 
-    <footer>🐍 Snake draft order reverses each round · Configurable timer per pick</footer>
+    <footer>🎲 Thanks for playing!</footer>
 </div>
 <div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
 
 <script src="results.js"></script>
-<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </body>
 </html>
