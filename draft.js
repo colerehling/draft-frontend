@@ -213,6 +213,7 @@ function generateDraftOrder() {
 function initMultiplayerSocket() {
     console.log('🔌 Creating socket connection');
     
+    
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
@@ -239,7 +240,11 @@ function initMultiplayerSocket() {
     socket.on('disconnect', () => {
         console.log('❌ Disconnected');
     });
-    
+
+    socket.onAny((event, ...args) => {
+        console.log('📡 Received event:', event, args);
+    });
+
     socket.on('draftStarted', (state) => {
         console.log('🎯 DRAFT STARTED!');
         showToast('Draft has started!', 2000);
