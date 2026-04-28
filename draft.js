@@ -46,20 +46,20 @@ function loadSetup() {
     isHost = config.isHost;
     
     if (isHost) {
-        myPlayerName = 'Host';
+        myPlayerName = config.hostName || 'Host';
         numPlayers = config.numPlayers;
         numRounds = config.numRounds;
         TIMER_DURATION = config.timerMinutes * 60;
         timeRemaining = TIMER_DURATION;
         
-        // Store config for when game starts
         localStorage.setItem('gameConfig', JSON.stringify({
             category: config.category,
             categoryName: config.categoryName,
             numPlayers: config.numPlayers,
             numRounds: config.numRounds,
             timerMinutes: config.timerMinutes,
-            draftType: config.draftType
+            draftType: config.draftType,
+            hostName: config.hostName || 'Host'
         }));
     } else {
         myPlayerName = config.playerName;
@@ -176,7 +176,7 @@ function createGameRoom() {
         numRounds: numRounds,
         timerMinutes: gameConfig.timerMinutes,
         draftType: gameConfig.draftType,
-        playerName: 'Host'
+        playerName: gameConfig.hostName || 'Host'
     };
     
     socket.emit('createGame', config, (response) => {
@@ -199,7 +199,6 @@ function joinGameRoom() {
             document.getElementById('lobbyTitle').innerHTML = '🎮 Waiting for Host';
             document.getElementById('lobbySubtitle').innerHTML = `Room: ${roomCode}`;
             
-            // Show ready button for joiner
             const readyDiv = document.getElementById('readyStatus');
             readyDiv.style.display = 'block';
             const readyBtn = document.getElementById('readyBtn');
@@ -257,13 +256,11 @@ function updatePlayersList() {
 function startDraftGame(state) {
     gameStarted = true;
     
-    // Hide lobby, show draft
     document.getElementById('lobbyScreen').style.display = 'none';
     document.getElementById('draftScreen').style.display = 'block';
-    document.getElementById('mainTitle').innerHTML = isHost ? '👑 HOSTING DRAFT' : '🎮 MULTIPLAYER DRAFT';
-    document.getElementById('subTitle').innerHTML = `Room: ${roomCode}`;
+    document.getElementById('mainTitle').innerHTML = '🎮 MULTIPLAYER DRAFT';
+    document.getElementById('subTitle').innerHTML = `Room: ${roomCode} | ${state.categoryName}`;
     
-    // Load draft state
     playersData = state.players;
     numPlayers = state.players.length;
     numRounds = state.numRounds;
@@ -305,7 +302,6 @@ function renderDraftScreen() {
         poolCountSpan.innerText = `${availableItems.length} items (${totalPicks - currentPickIndex} picks left)`;
     }
     
-    // Render available items
     if (availableContainer) {
         if (availableItems.length === 0 || isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -318,7 +314,6 @@ function renderDraftScreen() {
                 card.innerHTML = `
                     <div class="item-info">
                         <span class="item-name">${escapeHtml(item)}</span>
-                        <span class="item-score">⭐ ${itemsWithScores[item] || 0}</span>
                     </div>
                     <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                         ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -333,20 +328,17 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
             const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
             const playerName = getPlayerName(i);
-            const playerTotalScore = playersItems[i].reduce((sum, item) => sum + (item.score || 0), 0);
             
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             playerCol.innerHTML = `
                 <div class="player-header">
                     <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
-                    <div class="player-score">⭐ ${playerTotalScore}</div>
                 </div>
                 <div class="drafted-list">
                     ${playersItems[i].length === 0 
@@ -361,7 +353,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -401,8 +392,7 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
-        const score = itemsWithScores[data.item] || 0;
-        playersItems[playerIndex].push({ name: data.item, score: score });
+        playersItems[playerIndex].push({ name: data.item });
     }
     
     currentPickIndex++;
@@ -459,6 +449,14 @@ function updateTimerDisplay() {
     
     if (timerDisplayEl) {
         timerDisplayEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeRemaining <= 10) {
+            timerDisplayEl.style.color = '#ef4444';
+        } else if (timeRemaining <= 30) {
+            timerDisplayEl.style.color = '#f97316';
+        } else {
+            timerDisplayEl.style.color = '#facc15';
+        }
     }
     
     if (timerBarFillEl && TIMER_DURATION > 0) {
@@ -485,11 +483,9 @@ function showToast(message, duration = 2200) {
 function init() {
     if (!loadSetup()) return;
     
-    // Show lobby screen
     document.getElementById('lobbyScreen').style.display = 'block';
     document.getElementById('draftScreen').style.display = 'none';
     
-    // Connect socket
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         withCredentials: true
@@ -497,7 +493,6 @@ function init() {
     
     setupSocketListeners();
     
-    // Setup leave button
     document.getElementById('backToLobbyBtn').onclick = () => {
         window.location.href = 'index.html';
     };
@@ -510,7 +505,6 @@ function init() {
     
     document.getElementById('forceEndTurnBtn').onclick = () => {
         if (isMyTurn) {
-            // Auto pick random item
             if (availableItems.length > 0) {
                 const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
                 makePick(randomItem);
@@ -519,6 +513,8 @@ function init() {
             showToast("Not your turn!", 2000);
         }
     };
+    
+    showToast('Waiting for game to start...', 3000);
 }
 
 document.addEventListener('DOMContentLoaded', init);

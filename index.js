@@ -20,6 +20,7 @@ let hostTimerMinutes = 3;
 let hostSelectedCategory = null;
 let hostSelectedCategoryName = null;
 let hostSelectedCategoryCount = 0;
+let hostName = 'Host';
 
 function showToast(message, duration = 2200) {
     const toastEl = document.getElementById('toastMsg');
@@ -49,7 +50,10 @@ function getCategoryIcon(tableName) {
         'ice_cream_flavors': '🍦',
         'pizza_toppings': '🍕',
         'movie_genres': '🎬',
-        'vacation_destinations': '✈️'
+        'vacation_destinations': '✈️',
+        'sodas': '🥤',
+        'cereals': '🥣',
+        'fast_food': '🍔'
     };
     return iconMap[tableName] || '📦';
 }
@@ -76,9 +80,9 @@ async function loadCategoriesForHost() {
                 const card = document.createElement('div');
                 card.className = 'category-card-small';
                 card.innerHTML = `
-                    <span>${getCategoryIcon(cat.table_name)}</span>
-                    <span>${formatCategoryName(cat.table_name)}</span>
-                    <span>${cat.item_count} items</span>
+                    <span class="category-icon-small">${getCategoryIcon(cat.table_name)}</span>
+                    <span class="category-name-small">${formatCategoryName(cat.table_name)}</span>
+                    <span class="category-count-small">${cat.item_count} items</span>
                 `;
                 card.onclick = () => {
                     document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
@@ -96,6 +100,7 @@ async function loadCategoriesForHost() {
         }
     } catch (error) {
         updateDbStatus('❌ Error', '#ef4444');
+        showToast('Failed to load categories', 3000);
     }
 }
 
@@ -104,6 +109,10 @@ document.getElementById('hostOption').onclick = () => {
     hostJoinScreen.style.display = 'none';
     hostSettingsScreen.style.display = 'block';
     loadCategoriesForHost();
+    
+    // Reset host name input
+    const hostNameInput = document.getElementById('hostNameInput');
+    if (hostNameInput) hostNameInput.value = 'Host';
 };
 
 document.getElementById('joinOption').onclick = () => {
@@ -193,11 +202,16 @@ document.getElementById('createLobbyBtn').onclick = () => {
         return;
     }
     
+    // Get host name
+    const hostNameInput = document.getElementById('hostNameInput');
+    hostName = hostNameInput ? hostNameInput.value.trim() : 'Host';
+    if (!hostName) hostName = 'Host';
+    
     const draftType = document.querySelector('input[name="draftTypeHost"]:checked').value;
     
-    // Save config to localStorage and redirect to draft page
     const config = {
         isHost: true,
+        hostName: hostName,
         numPlayers: hostNumPlayers,
         category: hostSelectedCategory,
         categoryName: hostSelectedCategoryName,
