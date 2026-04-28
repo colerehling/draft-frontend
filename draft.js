@@ -85,11 +85,9 @@ function loadDraftConfig() {
         numRounds = state.numRounds;
         timerMinutes = Math.floor(state.timerSeconds / 60);
         
-        // Find my player name
         if (isHost) {
             myPlayerName = 'Host';
         } else {
-            // For joiner, find name from stored data
             const storedName = localStorage.getItem('myPlayerName');
             myPlayerName = storedName || playersData.find(p => p.name !== 'Host')?.name || 'Player';
         }
@@ -111,23 +109,20 @@ function loadDraftConfig() {
         TIMER_DURATION = state.timerSeconds;
         timeRemaining = TIMER_DURATION;
         
-        document.getElementById('categoryTitle').innerHTML = '📦 ' + currentCategoryName;
+        const categoryTitleEl = document.getElementById('categoryTitle');
+        if (categoryTitleEl) categoryTitleEl.innerHTML = '📦 ' + currentCategoryName;
         
         const titleElement = document.querySelector('h1');
-        if (titleElement) {
-            titleElement.innerHTML = isHost ? '👑 HOSTING DRAFT' : '🎮 MULTIPLAYER DRAFT';
-        }
+        if (titleElement) titleElement.innerHTML = isHost ? '👑 HOSTING DRAFT' : '🎮 MULTIPLAYER DRAFT';
+        
         const subElement = document.querySelector('.sub');
-        if (subElement) {
-            subElement.innerHTML = `Room: ${roomCode} | ${currentCategoryName}`;
-        }
+        if (subElement) subElement.innerHTML = `Room: ${roomCode} | ${currentCategoryName}`;
         
         renderGame();
         initMultiplayerSocket();
         return true;
     }
     
-    // Local game
     const config = localStorage.getItem('draftConfig');
     if (!config) {
         showToast('No draft config found');
@@ -145,7 +140,8 @@ function loadDraftConfig() {
     TIMER_DURATION = timerMinutes * 60;
     timeRemaining = TIMER_DURATION;
     
-    document.getElementById('categoryTitle').innerHTML = '📦 ' + currentCategoryName;
+    const categoryTitleEl = document.getElementById('categoryTitle');
+    if (categoryTitleEl) categoryTitleEl.innerHTML = '📦 ' + currentCategoryName;
     
     if (parsed.items) {
         itemsWithScores = {};
@@ -226,7 +222,6 @@ function initMultiplayerSocket() {
     socket.on('connect', () => {
         console.log('✅ Socket connected! ID:', socket.id);
         
-        // Load stored socket ID from lobby
         const storedSocketId = localStorage.getItem('mySocketId');
         if (storedSocketId && storedSocketId !== socket.id) {
             console.log('📡 Syncing player ID with server...');
@@ -237,9 +232,7 @@ function initMultiplayerSocket() {
             });
         }
         
-        // Update stored socket ID
         localStorage.setItem('mySocketId', socket.id);
-        
         socket.emit('joinGameRoom', roomCode);
     });
     
@@ -255,7 +248,6 @@ function initMultiplayerSocket() {
     socket.on('turnChange', (data) => {
         console.log('🔄 TURN CHANGE:', data);
         
-        // Compare by player name instead of socket ID
         const currentPlayerName = data.playerName;
         isMyTurn = (currentPlayerName === myPlayerName);
         
@@ -341,7 +333,6 @@ function performDraft(item) {
         return true;
     }
     
-    // Local game
     if (currentPickIndex >= draftOrder.length) {
         showToast("Draft is complete!");
         return false;
