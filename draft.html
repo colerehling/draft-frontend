@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draft Game | Lobby & Draft</title>
+    <title>Draft Game | Multiplayer Draft</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
@@ -11,8 +11,8 @@
 <div class="draft-app">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
-            <h1 id="mainTitle">DRAFT GAME</h1>
-            <div class="sub" id="subTitle">Loading...</div>
+            <h1 id="mainTitle">🎮 MULTIPLAYER DRAFT</h1>
+            <div class="sub" id="subTitle">Online multiplayer draft</div>
         </div>
         <div class="badge" id="connectionStatus">🔄 Connecting...</div>
     </div>
@@ -82,11 +82,11 @@
 
         <div class="action-bar">
             <button class="reset-btn" id="resetGameBtn">🔄 Reset Draft</button>
-            <button class="reset-all-btn" id="forceEndTurnBtn">⏩ Skip Turn</button>
+            <button class="reset-all-btn" id="forceEndTurnBtn">⚡ Auto Draft</button>
         </div>
     </div>
 
-    <footer id="footerText">🎲 Multiplayer Draft Game</footer>
+    <footer>🎲 Multiplayer Draft Game</footer>
 </div>
 <div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
 

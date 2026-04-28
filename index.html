@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draft Game | Setup</title>
+    <title>Draft Anything | Setup</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="draft-app">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
-            <h1>DRAFT GAME</h1>
+            <h1>DRAFT ANYTHING</h1>
             <div class="sub">Multiplayer draft · Timed picks · 2-8 players</div>
         </div>
         <div class="badge" id="dbStatus">🔄 Connecting...</div>
@@ -27,7 +27,7 @@
             <div class="host-join-card" id="hostOption">
                 <div class="host-join-icon">👑</div>
                 <h3>Host a Draft</h3>
-                <p>Create a new draft game and invite friends to join</p>
+                <p>Create a new draft and invite friends to join</p>
                 <div class="host-join-note">You'll get a room code to share</div>
             </div>
             
@@ -42,8 +42,16 @@
 
     <!-- Host Settings -->
     <div id="hostSettingsScreen" class="config-screen" style="display: none;">
+        <div class="config-card">
+    <div class="config-label">
+        <span class="label-icon">👤</span>
+        Your Name
+    </div>
+    <input type="text" id="hostNameInput" placeholder="Enter your name" maxlength="20" class="player-name-input" value="Host">
+    <div class="config-hint">How other players will see you</div>
+</div>
         <div class="config-header">
-            <h2>👑 Create Your Draft Game</h2>
+            <h2>👑 Create Your Draft</h2>
             <p>Configure all settings below</p>
         </div>
         
@@ -84,13 +92,13 @@
                         <input type="radio" name="draftTypeHost" value="snake" checked>
                         <span class="draft-type-icon">🐍</span>
                         <span class="draft-type-name">Snake Draft</span>
-                        <span class="draft-type-desc">1,2,3,3,2,1,1,2,3...</span>
+                        <span class="draft-type-desc">1,2,3,3,2,1...</span>
                     </label>
                     <label class="draft-type-option">
                         <input type="radio" name="draftTypeHost" value="regular">
                         <span class="draft-type-icon">📋</span>
                         <span class="draft-type-name">Regular Draft</span>
-                        <span class="draft-type-desc">1,2,3,1,2,3,1,2,3...</span>
+                        <span class="draft-type-desc">1,2,3,1,2,3...</span>
                     </label>
                 </div>
             </div>
