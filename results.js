@@ -37,7 +37,6 @@ function displayResults(results) {
     
     resultsContainer.innerHTML = '';
     
-    // Sort by place
     const sortedResults = [...results].sort((a, b) => a.place - b.place);
     
     sortedResults.forEach((player) => {
@@ -54,7 +53,6 @@ function createPlayerCard(player) {
         card.classList.add('champion-card');
     }
     
-    // Get medal for top 3
     let medalHtml = '';
     let placeColor = '#94a3b8';
     let placeText = '';
@@ -82,12 +80,59 @@ function createPlayerCard(player) {
         placeClass = 'other-text';
     }
     
-    // Get best and worst picks
     const bestPick = player.bestPick || getBestPickFromItems(player.items);
     const worstPick = player.worstPick || getWorstPickFromItems(player.items);
     
-    // Get chemistry moves from multiple possible locations
-    let chemistryMoves = collectChemistryMoves(player);
+    // Collect chemistry moves
+    let chemistryMoves = [];
+    
+    // Check for chemistryMoves in player object
+    if (player.chemistryMoves && Array.isArray(player.chemistryMoves) && player.chemistryMoves.length > 0) {
+        chemistryMoves = player.chemistryMoves;
+    }
+    // Check for chemistry array
+    else if (player.chemistry && Array.isArray(player.chemistry) && player.chemistry.length > 0) {
+        chemistryMoves = player.chemistry;
+    }
+    // Extract from items
+    else if (player.items && Array.isArray(player.items)) {
+        for (const item of player.items) {
+            if (item.chemistryDetails) {
+                if (item.chemistryDetails.synergies) {
+                    for (const syn of item.chemistryDetails.synergies) {
+                        chemistryMoves.push({
+                            type: 'synergy',
+                            text: `${syn.comboName || 'Bonus'} - ${item.name} & ${syn.with}`,
+                            points: syn.points
+                        });
+                    }
+                }
+                if (item.chemistryDetails.conflicts) {
+                    for (const con of item.chemistryDetails.conflicts) {
+                        chemistryMoves.push({
+                            type: 'conflict',
+                            text: `${con.comboName || 'Penalty'} - ${item.name} & ${con.with}`,
+                            points: con.points
+                        });
+                    }
+                }
+            }
+        }
+    }
+    
+    // Remove duplicates
+    const uniqueMoves = [];
+    const seen = new Set();
+    for (const move of chemistryMoves) {
+        const key = `${move.type}-${move.text}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueMoves.push(move);
+        }
+    }
+    chemistryMoves = uniqueMoves;
+    
+    console.log(`Chemistry moves for ${player.playerName}:`, chemistryMoves);
     
     card.innerHTML = `
         <div class="result-header" style="border-left-color: ${placeColor}">
@@ -96,7 +141,6 @@ function createPlayerCard(player) {
                 <div class="result-name ${placeClass}">${escapeHtml(player.playerName)}</div>
                 <div class="result-place ${placeClass}">${placeText}</div>
             </div>
-            <div class="result-picks-count">📦 ${player.items ? player.items.length : 0} picks</div>
         </div>
         
         <div class="result-details">
@@ -130,60 +174,6 @@ function createPlayerCard(player) {
     `;
     
     return card;
-}
-
-function collectChemistryMoves(player) {
-    const moves = [];
-    const seen = new Set();
-    
-    // Check various places where chemistry data might be stored
-    if (player.chemistryMoves && Array.isArray(player.chemistryMoves)) {
-        for (const move of player.chemistryMoves) {
-            addUniqueMove(moves, seen, move);
-        }
-    }
-    
-    if (player.chemistry && Array.isArray(player.chemistry)) {
-        for (const move of player.chemistry) {
-            addUniqueMove(moves, seen, move);
-        }
-    }
-    
-    // Extract from items if they have chemistry details
-    if (player.items && Array.isArray(player.items)) {
-        for (const item of player.items) {
-            if (item.chemistryDetails) {
-                if (item.chemistryDetails.synergies) {
-                    for (const syn of item.chemistryDetails.synergies) {
-                        addUniqueMove(moves, seen, {
-                            type: 'synergy',
-                            text: `${syn.comboName || '✨ Bonus'} - ${item.name} & ${syn.with}`,
-                            points: syn.points
-                        });
-                    }
-                }
-                if (item.chemistryDetails.conflicts) {
-                    for (const con of item.chemistryDetails.conflicts) {
-                        addUniqueMove(moves, seen, {
-                            type: 'conflict',
-                            text: `${con.comboName || '⚠️ Penalty'} - ${item.name} & ${con.with}`,
-                            points: con.points
-                        });
-                    }
-                }
-            }
-        }
-    }
-    
-    return moves;
-}
-
-function addUniqueMove(moves, seen, move) {
-    const key = `${move.type}-${move.text}`;
-    if (!seen.has(key)) {
-        seen.add(key);
-        moves.push(move);
-    }
 }
 
 function getBestPickFromItems(items) {
@@ -221,7 +211,6 @@ function escapeHtml(str) {
     });
 }
 
-// Setup navigation
 function setupNavigation() {
     const newDraftBtn = document.getElementById('newDraftBtn');
     if (newDraftBtn) {
@@ -236,7 +225,6 @@ function setupNavigation() {
     }
 }
 
-// Initialize
 function init() {
     console.log('Initializing results page');
     const results = loadResults();
