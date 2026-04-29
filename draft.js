@@ -32,12 +32,13 @@ let playersItems = [];
 let availableItems = [];
 let itemsWithScores = {};
 let draftOrder = [];
-let draftMode = 'simple'; // 'simple' or 'dynamic'
-let templateSlots = []; // For dynamic draft - array of slot objects
-let currentSlotIndex = 0; // For dynamic draft - which slot is being drafted
-let activeFilter = null; // For dynamic draft - current filter category
-let currentTemplate = null; // Current template name for dynamic draft
-let slotItemsCache = {}; // Cache of items per slot category
+let draftOrderType = 'snake';
+let draftMode = 'simple';
+let templateSlots = [];
+let currentSlotIndex = 0;
+let activeFilter = null;
+let currentTemplate = null;
+let slotItemsCache = {};
 
 // Load setup from localStorage
 function loadSetup() {
@@ -55,6 +56,7 @@ function loadSetup() {
         myPlayerName = config.hostName || 'Host';
         numPlayers = config.numPlayers;
         draftMode = config.draftMode || 'simple';
+        draftOrderType = config.draftType || 'snake';
         
         if (draftMode === 'simple') {
             numRounds = config.numRounds || 5;
@@ -72,7 +74,6 @@ function loadSetup() {
                 draftMode: 'simple'
             }));
         } else {
-            // Dynamic draft
             TIMER_DURATION = config.timerMinutes * 60;
             timeRemaining = TIMER_DURATION;
             
@@ -82,7 +83,8 @@ function loadSetup() {
                 numPlayers: config.numPlayers,
                 timerMinutes: config.timerMinutes,
                 hostName: config.hostName || 'Host',
-                draftMode: 'dynamic'
+                draftMode: 'dynamic',
+                draftType: config.draftType
             }));
         }
     } else {
@@ -154,7 +156,6 @@ function setupSocketListeners() {
     socket.on('draftStarted', async (state) => {
         console.log('Draft started!', state);
         
-        // If dynamic mode and no items loaded, fetch them
         if (draftMode === 'dynamic' && !state.itemsWithScores) {
             await loadDynamicItems();
             state.itemsWithScores = slotItemsCache;
@@ -205,14 +206,14 @@ function createGameRoom() {
         numPlayers: numPlayers,
         draftMode: draftMode,
         timerMinutes: gameConfig.timerMinutes,
-        playerName: gameConfig.hostName || 'Host'
+        playerName: gameConfig.hostName || 'Host',
+        draftType: draftOrderType
     };
     
     if (draftMode === 'simple') {
         config.category = gameConfig.category;
         config.categoryName = gameConfig.categoryName;
         config.numRounds = gameConfig.numRounds;
-        config.draftType = gameConfig.draftType;
     } else {
         config.templateName = gameConfig.templateName;
         config.templateDisplayName = gameConfig.templateDisplayName;
@@ -299,7 +300,6 @@ async function loadDynamicItems() {
     currentTemplate = templateName;
     
     try {
-        // Load slots for this template
         const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${templateName}/slots`);
         const slotsData = await slotsResponse.json();
         
@@ -307,14 +307,12 @@ async function loadDynamicItems() {
             templateSlots = slotsData.slots;
             numRounds = templateSlots.length;
             
-            // Load items for each slot category
             for (const slot of templateSlots) {
                 const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${templateName}/${slot.slot_name}`);
                 const itemsData = await itemsResponse.json();
                 
                 if (itemsData.success) {
                     slotItemsCache[slot.slot_name] = itemsData.items;
-                    // Also add to itemsWithScores for scoring
                     itemsData.items.forEach(item => {
                         itemsWithScores[item.item_name] = item.score;
                     });
@@ -328,7 +326,6 @@ async function loadDynamicItems() {
 }
 
 function flattenAvailableItems() {
-    // For dynamic draft, only show items for the current slot
     if (currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
         const items = slotItemsCache[currentSlot.slot_name] || [];
@@ -347,7 +344,6 @@ function updateFilterButtons() {
     
     filterContainer.innerHTML = '';
     
-    // Add filter button for each slot category
     templateSlots.forEach(slot => {
         const btn = document.createElement('button');
         btn.className = `filter-btn ${activeFilter === slot.slot_name ? 'active' : ''}`;
@@ -392,7 +388,6 @@ function getFilteredItems() {
         return slotItemsCache[activeFilter].map(item => item.item_name);
     }
     
-    // Return only items for current slot
     if (currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
         const items = slotItemsCache[currentSlot.slot_name] || [];
@@ -405,7 +400,6 @@ function getFilteredItems() {
 function startDraftGame(state) {
     gameStarted = true;
     
-    // Set title based on draft mode
     const gameConfig = JSON.parse(localStorage.getItem('gameConfig'));
     document.getElementById('mainTitle').innerHTML = draftMode === 'dynamic' ? '🎯 DYNAMIC DRAFT' : '🎮 MULTIPLAYER DRAFT';
     
@@ -421,6 +415,10 @@ function startDraftGame(state) {
     numPlayers = state.players.length;
     numRounds = state.numRounds || templateSlots.length;
     totalPicks = numPlayers * numRounds;
+    
+    if (gameConfig && gameConfig.draftType) {
+        draftOrderType = gameConfig.draftType;
+    }
     
     if (state.playersItems) {
         playersItems = state.playersItems.map(items => [...items]);
@@ -453,7 +451,6 @@ function startDraftGame(state) {
         timeRemaining = TIMER_DURATION;
     }
     
-    // Set category title
     if (draftMode === 'simple') {
         document.getElementById('categoryTitle').innerHTML = '📦 ' + (gameConfig.categoryName || 'Draft Pool');
     } else {
@@ -465,7 +462,6 @@ function startDraftGame(state) {
 
 function generateDraftOrder() {
     const order = [];
-    const draftOrderType = localStorage.getItem('draftOrderType') || 'snake';
     
     for (let round = 1; round <= numRounds; round++) {
         if (draftOrderType === 'snake' && round % 2 === 0) {
@@ -491,7 +487,6 @@ function renderDraftScreen() {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
-    // Update round indicator for dynamic draft
     if (roundIndicator) {
         if (isDraftComplete) {
             roundIndicator.textContent = '🏁 Draft Complete! 🏁';
@@ -512,7 +507,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Render available items
     if (availableContainer) {
         const itemsToShow = draftMode === 'dynamic' ? getFilteredItems() : availableItems;
         
@@ -545,7 +539,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -556,7 +549,6 @@ function renderDraftScreen() {
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
-            // Build player header
             let headerHtml = `
                 <div class="player-header">
                     <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
@@ -564,7 +556,6 @@ function renderDraftScreen() {
                 </div>
             `;
             
-            // For dynamic mode, show required slots
             if (draftMode === 'dynamic' && templateSlots.length > 0) {
                 let slotsHtml = '<div class="player-slots">';
                 templateSlots.forEach((slot, idx) => {
@@ -577,7 +568,6 @@ function renderDraftScreen() {
                 headerHtml += slotsHtml;
             }
             
-            // Build drafted items list
             let itemsHtml = '<div class="drafted-list">';
             if (playersItems[i].length === 0) {
                 itemsHtml += '<div class="empty-state">✨ No picks yet</div>';
@@ -599,7 +589,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -622,7 +611,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Update filter bar visibility for dynamic mode
     const filterBar = document.getElementById('filterBar');
     if (filterBar) {
         filterBar.style.display = (draftMode === 'dynamic' && gameStarted && !isDraftComplete && isMyTurn) ? 'flex' : 'none';
@@ -638,7 +626,6 @@ function makePick(item) {
         return;
     }
     
-    // For dynamic draft, validate the item belongs to the current slot
     if (draftMode === 'dynamic' && currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
         const validItems = slotItemsCache[currentSlot.slot_name] || [];
@@ -671,14 +658,12 @@ function applyPick(data) {
             score: data.score || itemsWithScores[data.item] || 0
         };
         
-        // For dynamic draft, track which slot was drafted
         if (draftMode === 'dynamic' && currentSlotIndex < templateSlots.length) {
             pickData.slot = templateSlots[currentSlotIndex].slot_name;
         }
         
         playersItems[playerIndex].push(pickData);
         
-        // Move to next slot in dynamic draft
         if (draftMode === 'dynamic') {
             currentSlotIndex++;
         }
@@ -689,7 +674,6 @@ function applyPick(data) {
         currentRound = draftOrder[currentPickIndex].round;
     }
     
-    // Refresh available items for dynamic draft (next slot)
     if (draftMode === 'dynamic' && gameStarted) {
         availableItems = flattenAvailableItems();
     }
@@ -776,10 +760,6 @@ function showToast(message, duration = 2200) {
 // Initialize
 function init() {
     if (!loadSetup()) return;
-    
-    // Check if we're in multiplayer mode
-    const isMultiplayer = localStorage.getItem('draftSetup')?.includes('roomCode') || 
-                          (isHost && !localStorage.getItem('gameConfig')?.includes('category'));
     
     document.getElementById('lobbyScreen').style.display = 'block';
     document.getElementById('draftScreen').style.display = 'none';

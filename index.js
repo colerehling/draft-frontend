@@ -74,13 +74,13 @@ function updateHostSummary() {
     
     if (draftMode === 'simple') {
         document.getElementById('summaryCategory').textContent = hostSelectedCategoryName || 'Not selected';
-        document.getElementById('summaryDraftType').style.display = 'flex';
         const draftType = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
         document.getElementById('summaryDraftType').querySelector('.stat-value').textContent = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
         document.getElementById('summaryTotalPicks').textContent = hostNumPlayers * hostNumRounds;
     } else {
         document.getElementById('summaryCategory').textContent = hostSelectedTemplateName || 'Not selected';
-        document.getElementById('summaryDraftType').style.display = 'none';
+        const dynamicDraftType = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
+        document.getElementById('summaryDraftType').querySelector('.stat-value').textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
         const totalPicks = hostNumPlayers * (hostSelectedTemplateSlots?.length || 0);
         document.getElementById('summaryTotalPicks').textContent = totalPicks;
     }
@@ -167,6 +167,7 @@ function toggleDraftModeUI() {
     
     // Dynamic mode elements
     document.getElementById('dynamicTemplateCard').style.display = !isSimple ? 'block' : 'none';
+    document.getElementById('dynamicOrderCard').style.display = !isSimple ? 'block' : 'none';
     
     // Clear selections when switching
     if (!isSimple) {
@@ -272,6 +273,10 @@ document.querySelectorAll('input[name="draftTypeHost"]').forEach(radio => {
     radio.onchange = () => updateHostSummary();
 });
 
+document.querySelectorAll('input[name="dynamicDraftType"]').forEach(radio => {
+    radio.onchange = () => updateHostSummary();
+});
+
 document.getElementById('clearCategoryBtn').onclick = () => {
     hostSelectedCategory = null;
     hostSelectedCategoryName = null;
@@ -311,7 +316,8 @@ document.getElementById('createLobbyBtn').onclick = () => {
     hostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
     if (!hostName) hostName = 'Player 1';
     
-    const draftOrder = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
+    const simpleDraftOrder = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
+    const dynamicDraftOrder = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
     
     const config = {
         isHost: true,
@@ -325,10 +331,11 @@ document.getElementById('createLobbyBtn').onclick = () => {
         config.category = hostSelectedCategory;
         config.categoryName = hostSelectedCategoryName;
         config.numRounds = hostNumRounds;
-        config.draftType = draftOrder;
+        config.draftType = simpleDraftOrder;
     } else {
         config.templateName = hostSelectedTemplate;
         config.templateDisplayName = hostSelectedTemplateName;
+        config.draftType = dynamicDraftOrder;
     }
     
     localStorage.setItem('draftSetup', JSON.stringify(config));

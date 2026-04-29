@@ -67,7 +67,7 @@
             <div class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🎲</span>
-                    Draft Type
+                    Draft Mode
                 </div>
                 <div class="draft-type-options">
                     <label class="draft-type-option">
@@ -124,11 +124,11 @@
                 <div class="config-hint">Choose a template with specific slots to fill</div>
             </div>
 
-            <!-- Snake/Regular Draft Type (only for Simple mode) -->
+            <!-- Snake/Regular Draft Type (for Simple mode) -->
             <div id="simpleOrderCard" class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🔄</span>
-                    Draft Order
+                    Draft Order (Simple Mode)
                 </div>
                 <div class="draft-type-options">
                     <label class="draft-type-option">
@@ -158,6 +158,28 @@
                     <button class="config-btn increment" id="incRoundsHost">+</button>
                 </div>
                 <div class="config-hint">Each player gets 1 pick per round</div>
+            </div>
+
+            <!-- Draft Order for Dynamic Mode (hidden initially) -->
+            <div id="dynamicOrderCard" class="config-card" style="display: none;">
+                <div class="config-label">
+                    <span class="label-icon">🔄</span>
+                    Draft Order (Dynamic Mode)
+                </div>
+                <div class="draft-type-options">
+                    <label class="draft-type-option">
+                        <input type="radio" name="dynamicDraftType" value="snake" checked>
+                        <span class="draft-type-icon">🐍</span>
+                        <span class="draft-type-name">Snake Draft</span>
+                        <span class="draft-type-desc">1,2,3,3,2,1,1,2,3...</span>
+                    </label>
+                    <label class="draft-type-option">
+                        <input type="radio" name="dynamicDraftType" value="regular">
+                        <span class="draft-type-icon">📋</span>
+                        <span class="draft-type-name">Regular Draft</span>
+                        <span class="draft-type-desc">1,2,3,1,2,3,1,2,3...</span>
+                    </label>
+                </div>
             </div>
 
             <!-- Timer -->
