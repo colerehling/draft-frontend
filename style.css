@@ -991,6 +991,7 @@ footer {
   border-radius: 20px;
 }
 
+/* FIXED: Best/Worst picks containers - properly sized */
 .result-details {
   padding: 20px;
   background: rgba(0, 0, 0, 0.2);
@@ -1005,22 +1006,27 @@ footer {
 
 .result-best, .result-worst {
   flex: 1;
-  padding: 12px;
+  min-width: 150px;
+  padding: 12px 15px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 10px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .result-label {
   font-size: 12px;
   color: #94a3b8;
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 8px;
 }
 
 .result-value {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   color: #eef2ff;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .result-chemistry {
@@ -1049,6 +1055,7 @@ footer {
   border-radius: 24px;
   font-size: 13px;
   background: rgba(255, 255, 255, 0.05);
+  word-break: break-word;
 }
 
 .chemistry-item.synergy {
@@ -1063,11 +1070,13 @@ footer {
 
 .chemistry-icon {
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .chemistry-text {
   flex: 1;
   color: #e2e8f0;
+  word-break: break-word;
 }
 
 .chemistry-points {
@@ -1076,6 +1085,7 @@ footer {
   padding: 2px 8px;
   border-radius: 20px;
   background: rgba(0, 0, 0, 0.3);
+  flex-shrink: 0;
 }
 
 .chemistry-item.synergy .chemistry-points {
@@ -1141,163 +1151,6 @@ footer {
   color: #facc15;
   font-weight: 600;
   letter-spacing: 2px;
-}
-
-/* Podium Styles */
-.podium-container {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  min-height: 400px;
-  margin: 40px 0;
-}
-
-.podium-single {
-  text-align: center;
-  padding: 30px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 215, 0, 0.05));
-  border-radius: 20px;
-  border: 2px solid #facc15;
-  min-width: 250px;
-}
-
-.podium-single .podium-medal {
-  font-size: 64px;
-  margin-bottom: 20px;
-}
-
-.podium-single .podium-name {
-  font-size: 28px;
-  font-weight: bold;
-  color: #facc15;
-  margin-bottom: 10px;
-}
-
-.podium-single .podium-place {
-  font-size: 18px;
-  color: #94a3b8;
-}
-
-.podium-two {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 30px;
-  flex-wrap: wrap;
-}
-
-.podium-item {
-  text-align: center;
-  padding: 25px;
-  border-radius: 16px;
-  min-width: 200px;
-}
-
-.podium-first {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(255, 215, 0, 0.1));
-  border: 2px solid #facc15;
-  order: 2;
-}
-
-.podium-second {
-  background: linear-gradient(135deg, rgba(192, 192, 192, 0.2), rgba(192, 192, 192, 0.05));
-  border: 2px solid #c0c0c0;
-  order: 1;
-}
-
-.podium-item .podium-medal {
-  font-size: 48px;
-  margin-bottom: 15px;
-}
-
-.podium-item .podium-name {
-  font-size: 24px;
-  font-weight: bold;
-  color: #eef2ff;
-  margin-bottom: 8px;
-}
-
-.podium-item .podium-place {
-  font-size: 14px;
-  color: #94a3b8;
-}
-
-.podium-three {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.podium-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 180px;
-}
-
-.podium-spot {
-  text-align: center;
-  padding: 20px;
-  border-radius: 12px 12px 0 0;
-  width: 100%;
-}
-
-.first-spot {
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 0.1));
-  border: 2px solid #facc15;
-  border-bottom: none;
-}
-
-.second-spot {
-  background: linear-gradient(135deg, rgba(192, 192, 192, 0.25), rgba(192, 192, 192, 0.08));
-  border: 2px solid #c0c0c0;
-  border-bottom: none;
-}
-
-.third-spot {
-  background: linear-gradient(135deg, rgba(205, 127, 50, 0.25), rgba(205, 127, 50, 0.08));
-  border: 2px solid #cd7f32;
-  border-bottom: none;
-}
-
-.podium-spot .podium-medal {
-  font-size: 40px;
-  margin-bottom: 10px;
-}
-
-.podium-spot .podium-name {
-  font-size: 18px;
-  font-weight: bold;
-  color: #eef2ff;
-  margin-bottom: 5px;
-}
-
-.podium-spot .podium-place {
-  font-size: 12px;
-  color: #94a3b8;
-}
-
-.podium-pedestal {
-  width: 100%;
-  height: 20px;
-  border-radius: 0 0 8px 8px;
-}
-
-.pedestal-first {
-  background: #facc15;
-  height: 30px;
-}
-
-.pedestal-second {
-  background: #c0c0c0;
-  height: 20px;
-}
-
-.pedestal-third {
-  background: #cd7f32;
-  height: 15px;
 }
 
 /* Responsive */
@@ -1371,33 +1224,15 @@ footer {
     flex-direction: column;
     gap: 10px;
   }
+  .result-best, .result-worst {
+    min-width: auto;
+    width: 100%;
+  }
   .chemistry-item {
     font-size: 11px;
     padding: 6px 12px;
   }
   .chemistry-list {
     flex-direction: column;
-  }
-  .podium-three {
-    gap: 10px;
-  }
-  .podium-column {
-    width: 110px;
-  }
-  .podium-spot .podium-medal {
-    font-size: 28px;
-  }
-  .podium-spot .podium-name {
-    font-size: 12px;
-  }
-  .podium-item .podium-name {
-    font-size: 18px;
-  }
-  .podium-item {
-    min-width: 150px;
-    padding: 15px;
-  }
-  .podium-single .podium-name {
-    font-size: 20px;
   }
 }
