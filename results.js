@@ -86,23 +86,18 @@ function createPlayerCard(player) {
     // Collect chemistry moves
     let chemistryMoves = [];
     
-    // Check for chemistryMoves in player object
     if (player.chemistryMoves && Array.isArray(player.chemistryMoves) && player.chemistryMoves.length > 0) {
         chemistryMoves = player.chemistryMoves;
-    }
-    // Check for chemistry array
-    else if (player.chemistry && Array.isArray(player.chemistry) && player.chemistry.length > 0) {
+    } else if (player.chemistry && Array.isArray(player.chemistry) && player.chemistry.length > 0) {
         chemistryMoves = player.chemistry;
-    }
-    // Extract from items
-    else if (player.items && Array.isArray(player.items)) {
+    } else if (player.items && Array.isArray(player.items)) {
         for (const item of player.items) {
             if (item.chemistryDetails) {
                 if (item.chemistryDetails.synergies) {
                     for (const syn of item.chemistryDetails.synergies) {
                         chemistryMoves.push({
                             type: 'synergy',
-                            text: `${syn.comboName || 'Bonus'} - ${item.name} & ${syn.with}`,
+                            text: `${syn.comboName || '✨ Bonus'} - ${item.name} & ${syn.with}`,
                             points: syn.points
                         });
                     }
@@ -111,7 +106,7 @@ function createPlayerCard(player) {
                     for (const con of item.chemistryDetails.conflicts) {
                         chemistryMoves.push({
                             type: 'conflict',
-                            text: `${con.comboName || 'Penalty'} - ${item.name} & ${con.with}`,
+                            text: `${con.comboName || '⚠️ Penalty'} - ${item.name} & ${con.with}`,
                             points: con.points
                         });
                     }
@@ -132,7 +127,8 @@ function createPlayerCard(player) {
     }
     chemistryMoves = uniqueMoves;
     
-    console.log(`Chemistry moves for ${player.playerName}:`, chemistryMoves);
+    const totalChemistry = chemistryMoves.reduce((sum, move) => sum + move.points, 0);
+    const hasChemistry = chemistryMoves.length > 0;
     
     card.innerHTML = `
         <div class="result-header" style="border-left-color: ${placeColor}">
@@ -141,6 +137,7 @@ function createPlayerCard(player) {
                 <div class="result-name ${placeClass}">${escapeHtml(player.playerName)}</div>
                 <div class="result-place ${placeClass}">${placeText}</div>
             </div>
+            ${hasChemistry ? `<div class="chemistry-badge ${totalChemistry > 0 ? 'positive' : 'negative'}">${totalChemistry > 0 ? '+' : ''}${totalChemistry} chemistry</div>` : ''}
         </div>
         
         <div class="result-details">
