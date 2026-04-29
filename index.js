@@ -55,7 +55,8 @@ function getCategoryIcon(tableName) {
         'cereals': '🥣',
         'fast_food': '🍔',
         'dog_breeds': '🐶',
-        'animated_dogs': '🐕‍🦺'
+        'animated_dogs': '🐕‍🦺',
+        'fruits': '🍏'
     };
     return iconMap[tableName] || '👽';
 }
@@ -114,7 +115,7 @@ document.getElementById('hostOption').onclick = () => {
     
     // Reset host name input
     const hostNameInput = document.getElementById('hostNameInput');
-    if (hostNameInput) hostNameInput.value = 'Host';
+    if (hostNameInput) hostNameInput.value = 'Player 1';
 };
 
 document.getElementById('joinOption').onclick = () => {
