@@ -2,10 +2,6 @@
 const isDevelopment = window.location.hostname === 'localhost' || 
                       window.location.hostname === '127.0.0.1';
 
-const API_BASE_URL = isDevelopment 
-    ? 'http://localhost:3000/api'
-    : 'https://draft-backend-f40v.onrender.com/api';
-
 console.log('=== RESULTS PAGE LOADED ===');
 
 // Get results from localStorage
@@ -20,6 +16,8 @@ function loadResults() {
     
     try {
         const results = JSON.parse(resultsData);
+        console.log('Parsed results:', results);
+        
         if (!results || !Array.isArray(results) || results.length === 0) {
             showError('Invalid results data.');
             return null;
@@ -55,43 +53,52 @@ function createPlayerCard(player) {
     // Get medal for top 3
     let medalHtml = '';
     let placeColor = '#94a3b8';
+    let placeText = '';
+    
     if (player.place === 1) {
         medalHtml = '<div class="result-medal">🥇</div>';
         placeColor = '#facc15';
+        placeText = '1st Place - Champion!';
     } else if (player.place === 2) {
         medalHtml = '<div class="result-medal">🥈</div>';
         placeColor = '#c0c0c0';
+        placeText = '2nd Place - Runner Up';
     } else if (player.place === 3) {
         medalHtml = '<div class="result-medal">🥉</div>';
         placeColor = '#cd7f32';
+        placeText = '3rd Place';
+    } else {
+        medalHtml = `<div class="result-medal">${player.place}th</div>`;
+        placeColor = '#475569';
+        placeText = `${player.place}th Place`;
     }
     
     // Get best and worst picks
-    const bestPick = getBestPick(player.items);
-    const worstPick = getWorstPick(player.items);
+    const bestPick = player.bestPick || getBestPickFromItems(player.items);
+    const worstPick = player.worstPick || getWorstPickFromItems(player.items);
     
-    // Get chemistry moves (synergies and conflicts)
-    const chemistryMoves = getChemistryMoves(player);
+    // Get chemistry moves
+    const chemistryMoves = player.chemistryMoves || [];
     
     card.innerHTML = `
         <div class="result-header" style="border-left-color: ${placeColor}">
             ${medalHtml}
             <div class="result-info">
                 <div class="result-name">${escapeHtml(player.playerName)}</div>
-                <div class="result-place">${getPlaceText(player.place)}</div>
+                <div class="result-place">${placeText}</div>
             </div>
-            <div class="result-picks-count">📦 ${player.items.length} picks</div>
+            <div class="result-picks-count">📦 ${player.items ? player.items.length : 0} picks</div>
         </div>
         
         <div class="result-details">
             <div class="result-best-worst">
                 <div class="result-best">
-                    <span class="result-label">🏆 Best Pick:</span>
-                    <span class="result-value">${bestPick ? escapeHtml(bestPick.name) : 'None'}</span>
+                    <div class="result-label">🏆 Best Pick:</div>
+                    <div class="result-value">${bestPick ? escapeHtml(bestPick.name) : 'None'}</div>
                 </div>
                 <div class="result-worst">
-                    <span class="result-label">📉 Worst Pick:</span>
-                    <span class="result-value">${worstPick ? escapeHtml(worstPick.name) : 'None'}</span>
+                    <div class="result-label">📉 Worst Pick:</div>
+                    <div class="result-value">${worstPick ? escapeHtml(worstPick.name) : 'None'}</div>
                 </div>
             </div>
             
@@ -115,46 +122,17 @@ function createPlayerCard(player) {
     return card;
 }
 
-function getBestPick(items) {
+function getBestPickFromItems(items) {
     if (!items || items.length === 0) return null;
     // Sort by score (assuming items have a score property)
-    const sorted = [...items].sort((a, b) => (b.score || 0) - (a.score || 0));
-    return sorted[0];
+    const sorted = [...items].sort((a, b) => (b.score || b.baseScore || 0) - (a.score || a.baseScore || 0));
+    return { name: sorted[0].name, score: sorted[0].score || sorted[0].baseScore };
 }
 
-function getWorstPick(items) {
+function getWorstPickFromItems(items) {
     if (!items || items.length === 0) return null;
-    const sorted = [...items].sort((a, b) => (a.score || 0) - (b.score || 0));
-    return sorted[0];
-}
-
-function getChemistryMoves(player) {
-    const moves = [];
-    
-    // Check for synergies and conflicts in player's items
-    // This would be populated from the backend during draft
-    if (player.chemistry && player.chemistry.length > 0) {
-        return player.chemistry;
-    }
-    
-    // Fallback: Calculate chemistry from item combinations
-    if (player.items && player.items.length > 1) {
-        for (let i = 0; i < player.items.length; i++) {
-            for (let j = i + 1; j < player.items.length; j++) {
-                // This would need to check against a chemistry lookup
-                // For now, just a placeholder
-            }
-        }
-    }
-    
-    return moves;
-}
-
-function getPlaceText(place) {
-    if (place === 1) return 'Champion';
-    if (place === 2) return 'Runner Up';
-    if (place === 3) return 'Third Place';
-    return `${place}th Place`;
+    const sorted = [...items].sort((a, b) => (a.score || a.baseScore || 0) - (b.score || b.baseScore || 0));
+    return { name: sorted[0].name, score: sorted[0].score || sorted[0].baseScore };
 }
 
 function showError(message) {
@@ -197,10 +175,14 @@ function setupNavigation() {
 
 // Initialize
 function init() {
+    console.log('Initializing results page');
     const results = loadResults();
     if (results) {
+        console.log('Results loaded, displaying...');
         displayResults(results);
         setupNavigation();
+    } else {
+        console.error('No results found');
     }
 }
 
