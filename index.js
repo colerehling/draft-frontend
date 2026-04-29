@@ -53,9 +53,11 @@ function getCategoryIcon(tableName) {
         'vacation_destinations': '✈️',
         'sodas': '🥤',
         'cereals': '🥣',
-        'fast_food': '🍔'
+        'fast_food': '🍔',
+        'dog_breeds': '🐶',
+        'animated_dogs': '🐕‍🦺'
     };
-    return iconMap[tableName] || '📦';
+    return iconMap[tableName] || '👽';
 }
 
 function updateHostSummary() {
