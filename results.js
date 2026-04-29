@@ -153,7 +153,7 @@ function createPlayerCard(player) {
                     <div class="chemistry-list">
                         ${chemistryMoves.map(move => `
                             <div class="chemistry-item ${move.type}">
-                                <span class="chemistry-icon">${move.type === 'synergy' ? '✨' : '⚠️'}</span>
+                                <span class="chemistry-icon">${move.type === 'synergy' ? '✨ Bonus' : '⚠️ Penalty'}</span>
                                 <span class="chemistry-text">${escapeHtml(move.text)}</span>
                             </div>
                         `).join('')}
