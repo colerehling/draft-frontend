@@ -22,7 +22,10 @@ function loadResults() {
             showError('Invalid results data.');
             return null;
         }
-        return results;
+        
+        // Sort by place to ensure correct order (1st, 2nd, 3rd...)
+        const sortedResults = [...results].sort((a, b) => a.place - b.place);
+        return sortedResults;
     } catch (error) {
         console.error('Error parsing results:', error);
         showError('Error loading results.');
@@ -37,9 +40,7 @@ function displayResults(results) {
     
     resultsContainer.innerHTML = '';
     
-    const sortedResults = [...results].sort((a, b) => a.place - b.place);
-    
-    sortedResults.forEach((player) => {
+    results.forEach((player) => {
         const card = createPlayerCard(player);
         resultsContainer.appendChild(card);
     });
@@ -167,13 +168,21 @@ function createPlayerCard(player) {
 
 function getBestPickFromItems(items) {
     if (!items || items.length === 0) return null;
-    const sorted = [...items].sort((a, b) => (b.score || b.baseScore || 0) - (a.score || a.baseScore || 0));
+    const sorted = [...items].sort((a, b) => {
+        const scoreA = parseFloat(a.baseScore || a.score || 0);
+        const scoreB = parseFloat(b.baseScore || b.score || 0);
+        return scoreB - scoreA;
+    });
     return { name: sorted[0].name };
 }
 
 function getWorstPickFromItems(items) {
     if (!items || items.length === 0) return null;
-    const sorted = [...items].sort((a, b) => (a.score || a.baseScore || 0) - (b.score || b.baseScore || 0));
+    const sorted = [...items].sort((a, b) => {
+        const scoreA = parseFloat(a.baseScore || a.score || 0);
+        const scoreB = parseFloat(b.baseScore || b.score || 0);
+        return scoreA - scoreB;
+    });
     return { name: sorted[0].name };
 }
 
