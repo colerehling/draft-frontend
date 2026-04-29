@@ -20,7 +20,11 @@ let hostTimerMinutes = 3;
 let hostSelectedCategory = null;
 let hostSelectedCategoryName = null;
 let hostSelectedCategoryCount = 0;
-let hostName = 'Host';
+let hostSelectedTemplate = null;
+let hostSelectedTemplateName = null;
+let hostSelectedTemplateSlots = [];
+let hostName = 'Player 1';
+let draftMode = 'simple'; // 'simple' or 'dynamic'
 
 function showToast(message, duration = 2200) {
     const toastEl = document.getElementById('toastMsg');
@@ -56,20 +60,32 @@ function getCategoryIcon(tableName) {
         'fast_food': '🍔',
         'dog_breeds': '🐶',
         'animated_dogs': '🐕‍🦺',
-        'fruits': '🍏'
+        'fruits': '🍏',
+        'fast_food_meal': '🍔',
+        'movie_night': '🎬',
+        'beach_day': '🏖️'
     };
     return iconMap[tableName] || '👽';
 }
 
 function updateHostSummary() {
     document.getElementById('summaryPlayers').textContent = hostNumPlayers;
-    document.getElementById('summaryRounds').textContent = hostNumRounds;
-    document.getElementById('summaryTimer').textContent = hostTimerMinutes + ' min';
-    document.getElementById('summaryCategory').textContent = hostSelectedCategoryName || 'Not selected';
-    document.getElementById('summaryTotalPicks').textContent = hostNumPlayers * hostNumRounds;
+    document.getElementById('summaryDraftMode').textContent = draftMode === 'simple' ? '📋 Simple' : '🎯 Dynamic';
     
-    const draftType = document.querySelector('input[name="draftTypeHost"]:checked').value;
-    document.getElementById('summaryDraftType').textContent = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+    if (draftMode === 'simple') {
+        document.getElementById('summaryCategory').textContent = hostSelectedCategoryName || 'Not selected';
+        document.getElementById('summaryDraftType').style.display = 'flex';
+        const draftType = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
+        document.getElementById('summaryDraftType').querySelector('.stat-value').textContent = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+        document.getElementById('summaryTotalPicks').textContent = hostNumPlayers * hostNumRounds;
+    } else {
+        document.getElementById('summaryCategory').textContent = hostSelectedTemplateName || 'Not selected';
+        document.getElementById('summaryDraftType').style.display = 'none';
+        const totalPicks = hostNumPlayers * (hostSelectedTemplateSlots?.length || 0);
+        document.getElementById('summaryTotalPicks').textContent = totalPicks;
+    }
+    
+    document.getElementById('summaryTimer').textContent = hostTimerMinutes + ' min';
 }
 
 async function loadCategoriesForHost() {
@@ -88,7 +104,7 @@ async function loadCategoriesForHost() {
                     <span class="category-count-small">${cat.item_count} items</span>
                 `;
                 card.onclick = () => {
-                    document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
+                    document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     hostSelectedCategory = cat.table_name;
                     hostSelectedCategoryName = formatCategoryName(cat.table_name);
@@ -107,15 +123,86 @@ async function loadCategoriesForHost() {
     }
 }
 
+async function loadDynamicTemplates() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/dynamic-templates`);
+        const data = await response.json();
+        if (data.success && data.templates) {
+            const grid = document.getElementById('dynamicTemplateGrid');
+            grid.innerHTML = '';
+            data.templates.forEach(template => {
+                const card = document.createElement('div');
+                card.className = 'category-card-small';
+                card.innerHTML = `
+                    <span class="category-icon-small">${getCategoryIcon(template.template_name)}</span>
+                    <span class="category-name-small">${template.display_name}</span>
+                    <span class="category-count-small">${template.total_rounds} slots</span>
+                `;
+                card.onclick = () => {
+                    document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    hostSelectedTemplate = template.template_name;
+                    hostSelectedTemplateName = template.display_name;
+                    hostSelectedTemplateSlots = template.slots || [];
+                    document.getElementById('selectedTemplateDisplay').style.display = 'flex';
+                    document.getElementById('selectedTemplateName').textContent = hostSelectedTemplateName;
+                    document.getElementById('selectedTemplateRounds').textContent = `${template.total_rounds} rounds`;
+                    updateHostSummary();
+                };
+                grid.appendChild(card);
+            });
+        }
+    } catch (error) {
+        showToast('Failed to load dynamic templates', 3000);
+    }
+}
+
+function toggleDraftModeUI() {
+    const isSimple = draftMode === 'simple';
+    
+    // Simple mode elements
+    document.getElementById('simpleCategoryCard').style.display = isSimple ? 'block' : 'none';
+    document.getElementById('simpleOrderCard').style.display = isSimple ? 'block' : 'none';
+    document.getElementById('simpleRoundsCard').style.display = isSimple ? 'block' : 'none';
+    
+    // Dynamic mode elements
+    document.getElementById('dynamicTemplateCard').style.display = !isSimple ? 'block' : 'none';
+    
+    // Clear selections when switching
+    if (!isSimple) {
+        hostSelectedCategory = null;
+        hostSelectedCategoryName = null;
+        document.getElementById('selectedCategoryDisplay').style.display = 'none';
+        document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
+    } else {
+        hostSelectedTemplate = null;
+        hostSelectedTemplateName = null;
+        document.getElementById('selectedTemplateDisplay').style.display = 'none';
+        document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
+    }
+    
+    updateHostSummary();
+}
+
 // Event Listeners
 document.getElementById('hostOption').onclick = () => {
     hostJoinScreen.style.display = 'none';
     hostSettingsScreen.style.display = 'block';
     loadCategoriesForHost();
+    loadDynamicTemplates();
     
-    // Reset host name input
     const hostNameInput = document.getElementById('hostNameInput');
     if (hostNameInput) hostNameInput.value = 'Player 1';
+    
+    // Set up draft mode toggle
+    const modeRadios = document.querySelectorAll('input[name="draftTypeMode"]');
+    modeRadios.forEach(radio => {
+        radio.onchange = () => {
+            draftMode = radio.value;
+            toggleDraftModeUI();
+        };
+    });
+    toggleDraftModeUI();
 };
 
 document.getElementById('joinOption').onclick = () => {
@@ -189,39 +276,60 @@ document.getElementById('clearCategoryBtn').onclick = () => {
     hostSelectedCategory = null;
     hostSelectedCategoryName = null;
     document.getElementById('selectedCategoryDisplay').style.display = 'none';
-    document.querySelectorAll('.category-card-small').forEach(c => c.classList.remove('selected'));
+    document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
+    updateHostSummary();
+};
+
+document.getElementById('clearTemplateBtn').onclick = () => {
+    hostSelectedTemplate = null;
+    hostSelectedTemplateName = null;
+    hostSelectedTemplateSlots = [];
+    document.getElementById('selectedTemplateDisplay').style.display = 'none';
+    document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
     updateHostSummary();
 };
 
 document.getElementById('createLobbyBtn').onclick = () => {
-    if (!hostSelectedCategory) {
-        showToast('Please select a category', 3000);
-        return;
+    if (draftMode === 'simple') {
+        if (!hostSelectedCategory) {
+            showToast('Please select a category', 3000);
+            return;
+        }
+        const totalPicks = hostNumPlayers * hostNumRounds;
+        if (totalPicks > hostSelectedCategoryCount) {
+            showToast(`Need ${totalPicks} items but only ${hostSelectedCategoryCount} available`, 4000);
+            return;
+        }
+    } else {
+        if (!hostSelectedTemplate) {
+            showToast('Please select a template', 3000);
+            return;
+        }
     }
     
-    const totalPicks = hostNumPlayers * hostNumRounds;
-    if (totalPicks > hostSelectedCategoryCount) {
-        showToast(`Need ${totalPicks} items but only ${hostSelectedCategoryCount} available`, 4000);
-        return;
-    }
-    
-    // Get host name
     const hostNameInput = document.getElementById('hostNameInput');
-    hostName = hostNameInput ? hostNameInput.value.trim() : 'Host';
-    if (!hostName) hostName = 'Host';
+    hostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
+    if (!hostName) hostName = 'Player 1';
     
-    const draftType = document.querySelector('input[name="draftTypeHost"]:checked').value;
+    const draftOrder = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
     
     const config = {
         isHost: true,
         hostName: hostName,
         numPlayers: hostNumPlayers,
-        category: hostSelectedCategory,
-        categoryName: hostSelectedCategoryName,
-        numRounds: hostNumRounds,
-        timerMinutes: hostTimerMinutes,
-        draftType: draftType
+        draftMode: draftMode,
+        timerMinutes: hostTimerMinutes
     };
+    
+    if (draftMode === 'simple') {
+        config.category = hostSelectedCategory;
+        config.categoryName = hostSelectedCategoryName;
+        config.numRounds = hostNumRounds;
+        config.draftType = draftOrder;
+    } else {
+        config.templateName = hostSelectedTemplate;
+        config.templateDisplayName = hostSelectedTemplateName;
+    }
     
     localStorage.setItem('draftSetup', JSON.stringify(config));
     window.location.href = 'draft.html';
