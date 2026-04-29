@@ -69,23 +69,30 @@ function getCategoryIcon(tableName) {
 }
 
 function updateHostSummary() {
-    document.getElementById('summaryPlayers').textContent = hostNumPlayers;
-    document.getElementById('summaryDraftMode').textContent = draftMode === 'simple' ? '📋 Simple' : '🎯 Dynamic';
+    const summaryPlayers = document.getElementById('summaryPlayers');
+    const summaryDraftMode = document.getElementById('summaryDraftMode');
+    const summaryCategory = document.getElementById('summaryCategory');
+    const summaryDraftType = document.getElementById('summaryDraftType');
+    const summaryTotalPicks = document.getElementById('summaryTotalPicks');
+    const summaryTimer = document.getElementById('summaryTimer');
+    
+    if (summaryPlayers) summaryPlayers.textContent = hostNumPlayers;
+    if (summaryDraftMode) summaryDraftMode.textContent = draftMode === 'simple' ? '📋 Simple' : '🎯 Dynamic';
     
     if (draftMode === 'simple') {
-        document.getElementById('summaryCategory').textContent = hostSelectedCategoryName || 'Not selected';
+        if (summaryCategory) summaryCategory.textContent = hostSelectedCategoryName || 'Not selected';
         const draftType = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
-        document.getElementById('summaryDraftType').querySelector('.stat-value').textContent = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
-        document.getElementById('summaryTotalPicks').textContent = hostNumPlayers * hostNumRounds;
+        if (summaryDraftType) summaryDraftType.textContent = draftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+        if (summaryTotalPicks) summaryTotalPicks.textContent = hostNumPlayers * hostNumRounds;
     } else {
-        document.getElementById('summaryCategory').textContent = hostSelectedTemplateName || 'Not selected';
+        if (summaryCategory) summaryCategory.textContent = hostSelectedTemplateName || 'Not selected';
         const dynamicDraftType = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
-        document.getElementById('summaryDraftType').querySelector('.stat-value').textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+        if (summaryDraftType) summaryDraftType.textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
         const totalPicks = hostNumPlayers * (hostSelectedTemplateSlots?.length || 0);
-        document.getElementById('summaryTotalPicks').textContent = totalPicks;
+        if (summaryTotalPicks) summaryTotalPicks.textContent = totalPicks;
     }
     
-    document.getElementById('summaryTimer').textContent = hostTimerMinutes + ' min';
+    if (summaryTimer) summaryTimer.textContent = hostTimerMinutes + ' min';
 }
 
 async function loadCategoriesForHost() {
@@ -94,6 +101,7 @@ async function loadCategoriesForHost() {
         const data = await response.json();
         if (data.success && data.categories) {
             const grid = document.getElementById('categoryGridHost');
+            if (!grid) return;
             grid.innerHTML = '';
             data.categories.forEach(cat => {
                 const card = document.createElement('div');
@@ -109,8 +117,10 @@ async function loadCategoriesForHost() {
                     hostSelectedCategory = cat.table_name;
                     hostSelectedCategoryName = formatCategoryName(cat.table_name);
                     hostSelectedCategoryCount = cat.item_count;
-                    document.getElementById('selectedCategoryDisplay').style.display = 'flex';
-                    document.getElementById('selectedCategoryNameHost').textContent = hostSelectedCategoryName;
+                    const selectedDisplay = document.getElementById('selectedCategoryDisplay');
+                    const selectedNameSpan = document.getElementById('selectedCategoryNameHost');
+                    if (selectedDisplay) selectedDisplay.style.display = 'flex';
+                    if (selectedNameSpan) selectedNameSpan.textContent = hostSelectedCategoryName;
                     updateHostSummary();
                 };
                 grid.appendChild(card);
@@ -129,6 +139,7 @@ async function loadDynamicTemplates() {
         const data = await response.json();
         if (data.success && data.templates) {
             const grid = document.getElementById('dynamicTemplateGrid');
+            if (!grid) return;
             grid.innerHTML = '';
             data.templates.forEach(template => {
                 const card = document.createElement('div');
@@ -144,9 +155,12 @@ async function loadDynamicTemplates() {
                     hostSelectedTemplate = template.template_name;
                     hostSelectedTemplateName = template.display_name;
                     hostSelectedTemplateSlots = template.slots || [];
-                    document.getElementById('selectedTemplateDisplay').style.display = 'flex';
-                    document.getElementById('selectedTemplateName').textContent = hostSelectedTemplateName;
-                    document.getElementById('selectedTemplateRounds').textContent = `${template.total_rounds} rounds`;
+                    const selectedDisplay = document.getElementById('selectedTemplateDisplay');
+                    const selectedNameSpan = document.getElementById('selectedTemplateName');
+                    const selectedRoundsSpan = document.getElementById('selectedTemplateRounds');
+                    if (selectedDisplay) selectedDisplay.style.display = 'flex';
+                    if (selectedNameSpan) selectedNameSpan.textContent = hostSelectedTemplateName;
+                    if (selectedRoundsSpan) selectedRoundsSpan.textContent = `${template.total_rounds} rounds`;
                     updateHostSummary();
                 };
                 grid.appendChild(card);
@@ -160,25 +174,29 @@ async function loadDynamicTemplates() {
 function toggleDraftModeUI() {
     const isSimple = draftMode === 'simple';
     
-    // Simple mode elements
-    document.getElementById('simpleCategoryCard').style.display = isSimple ? 'block' : 'none';
-    document.getElementById('simpleOrderCard').style.display = isSimple ? 'block' : 'none';
-    document.getElementById('simpleRoundsCard').style.display = isSimple ? 'block' : 'none';
+    const simpleCategoryCard = document.getElementById('simpleCategoryCard');
+    const simpleOrderCard = document.getElementById('simpleOrderCard');
+    const simpleRoundsCard = document.getElementById('simpleRoundsCard');
+    const dynamicTemplateCard = document.getElementById('dynamicTemplateCard');
+    const dynamicOrderCard = document.getElementById('dynamicOrderCard');
     
-    // Dynamic mode elements
-    document.getElementById('dynamicTemplateCard').style.display = !isSimple ? 'block' : 'none';
-    document.getElementById('dynamicOrderCard').style.display = !isSimple ? 'block' : 'none';
+    if (simpleCategoryCard) simpleCategoryCard.style.display = isSimple ? 'block' : 'none';
+    if (simpleOrderCard) simpleOrderCard.style.display = isSimple ? 'block' : 'none';
+    if (simpleRoundsCard) simpleRoundsCard.style.display = isSimple ? 'block' : 'none';
+    if (dynamicTemplateCard) dynamicTemplateCard.style.display = !isSimple ? 'block' : 'none';
+    if (dynamicOrderCard) dynamicOrderCard.style.display = !isSimple ? 'block' : 'none';
     
-    // Clear selections when switching
     if (!isSimple) {
         hostSelectedCategory = null;
         hostSelectedCategoryName = null;
-        document.getElementById('selectedCategoryDisplay').style.display = 'none';
+        const selectedDisplay = document.getElementById('selectedCategoryDisplay');
+        if (selectedDisplay) selectedDisplay.style.display = 'none';
         document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
     } else {
         hostSelectedTemplate = null;
         hostSelectedTemplateName = null;
-        document.getElementById('selectedTemplateDisplay').style.display = 'none';
+        const selectedDisplay = document.getElementById('selectedTemplateDisplay');
+        if (selectedDisplay) selectedDisplay.style.display = 'none';
         document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
     }
     
@@ -186,88 +204,123 @@ function toggleDraftModeUI() {
 }
 
 // Event Listeners
-document.getElementById('hostOption').onclick = () => {
-    hostJoinScreen.style.display = 'none';
-    hostSettingsScreen.style.display = 'block';
-    loadCategoriesForHost();
-    loadDynamicTemplates();
-    
-    const hostNameInput = document.getElementById('hostNameInput');
-    if (hostNameInput) hostNameInput.value = 'Player 1';
-    
-    // Set up draft mode toggle
-    const modeRadios = document.querySelectorAll('input[name="draftTypeMode"]');
-    modeRadios.forEach(radio => {
-        radio.onchange = () => {
-            draftMode = radio.value;
-            toggleDraftModeUI();
-        };
-    });
-    toggleDraftModeUI();
-};
+const hostOption = document.getElementById('hostOption');
+if (hostOption) {
+    hostOption.onclick = () => {
+        if (hostJoinScreen) hostJoinScreen.style.display = 'none';
+        if (hostSettingsScreen) hostSettingsScreen.style.display = 'block';
+        loadCategoriesForHost();
+        loadDynamicTemplates();
+        
+        const hostNameInput = document.getElementById('hostNameInput');
+        if (hostNameInput) hostNameInput.value = 'Player 1';
+        
+        const modeRadios = document.querySelectorAll('input[name="draftTypeMode"]');
+        modeRadios.forEach(radio => {
+            radio.onchange = () => {
+                draftMode = radio.value;
+                toggleDraftModeUI();
+            };
+        });
+        toggleDraftModeUI();
+    };
+}
 
-document.getElementById('joinOption').onclick = () => {
-    hostJoinScreen.style.display = 'none';
-    joinSettingsScreen.style.display = 'block';
-};
+const joinOption = document.getElementById('joinOption');
+if (joinOption) {
+    joinOption.onclick = () => {
+        if (hostJoinScreen) hostJoinScreen.style.display = 'none';
+        if (joinSettingsScreen) joinSettingsScreen.style.display = 'block';
+    };
+}
 
-document.getElementById('backToHostJoinBtn').onclick = () => {
-    hostSettingsScreen.style.display = 'none';
-    hostJoinScreen.style.display = 'block';
-};
+const backToHostJoinBtn = document.getElementById('backToHostJoinBtn');
+if (backToHostJoinBtn) {
+    backToHostJoinBtn.onclick = () => {
+        if (hostSettingsScreen) hostSettingsScreen.style.display = 'none';
+        if (hostJoinScreen) hostJoinScreen.style.display = 'block';
+    };
+}
 
-document.getElementById('backToHostJoinJoinBtn').onclick = () => {
-    joinSettingsScreen.style.display = 'none';
-    hostJoinScreen.style.display = 'block';
-};
+const backToHostJoinJoinBtn = document.getElementById('backToHostJoinJoinBtn');
+if (backToHostJoinJoinBtn) {
+    backToHostJoinJoinBtn.onclick = () => {
+        if (joinSettingsScreen) joinSettingsScreen.style.display = 'none';
+        if (hostJoinScreen) hostJoinScreen.style.display = 'block';
+    };
+}
 
-document.getElementById('decPlayersHost').onclick = () => {
-    if (hostNumPlayers > 2) {
-        hostNumPlayers--;
-        document.getElementById('numPlayersHost').textContent = hostNumPlayers;
-        updateHostSummary();
-    }
-};
+const decPlayersHost = document.getElementById('decPlayersHost');
+if (decPlayersHost) {
+    decPlayersHost.onclick = () => {
+        if (hostNumPlayers > 2) {
+            hostNumPlayers--;
+            const numPlayersSpan = document.getElementById('numPlayersHost');
+            if (numPlayersSpan) numPlayersSpan.textContent = hostNumPlayers;
+            updateHostSummary();
+        }
+    };
+}
 
-document.getElementById('incPlayersHost').onclick = () => {
-    if (hostNumPlayers < 8) {
-        hostNumPlayers++;
-        document.getElementById('numPlayersHost').textContent = hostNumPlayers;
-        updateHostSummary();
-    }
-};
+const incPlayersHost = document.getElementById('incPlayersHost');
+if (incPlayersHost) {
+    incPlayersHost.onclick = () => {
+        if (hostNumPlayers < 8) {
+            hostNumPlayers++;
+            const numPlayersSpan = document.getElementById('numPlayersHost');
+            if (numPlayersSpan) numPlayersSpan.textContent = hostNumPlayers;
+            updateHostSummary();
+        }
+    };
+}
 
-document.getElementById('decRoundsHost').onclick = () => {
-    if (hostNumRounds > 3) {
-        hostNumRounds--;
-        document.getElementById('numRoundsHost').textContent = hostNumRounds;
-        updateHostSummary();
-    }
-};
+const decRoundsHost = document.getElementById('decRoundsHost');
+if (decRoundsHost) {
+    decRoundsHost.onclick = () => {
+        if (hostNumRounds > 3) {
+            hostNumRounds--;
+            const numRoundsSpan = document.getElementById('numRoundsHost');
+            if (numRoundsSpan) numRoundsSpan.textContent = hostNumRounds;
+            updateHostSummary();
+        }
+    };
+}
 
-document.getElementById('incRoundsHost').onclick = () => {
-    if (hostNumRounds < 10) {
-        hostNumRounds++;
-        document.getElementById('numRoundsHost').textContent = hostNumRounds;
-        updateHostSummary();
-    }
-};
+const incRoundsHost = document.getElementById('incRoundsHost');
+if (incRoundsHost) {
+    incRoundsHost.onclick = () => {
+        if (hostNumRounds < 10) {
+            hostNumRounds++;
+            const numRoundsSpan = document.getElementById('numRoundsHost');
+            if (numRoundsSpan) numRoundsSpan.textContent = hostNumRounds;
+            updateHostSummary();
+        }
+    };
+}
 
-document.getElementById('decTimeHost').onclick = () => {
-    if (hostTimerMinutes > 1) {
-        hostTimerMinutes--;
-        document.getElementById('timerMinutesHost').textContent = hostTimerMinutes;
-        updateHostSummary();
-    }
-};
+const decTimeHost = document.getElementById('decTimeHost');
+if (decTimeHost) {
+    decTimeHost.onclick = () => {
+        if (hostTimerMinutes > 1) {
+            hostTimerMinutes--;
+            const timerMinutesSpan = document.getElementById('timerMinutesHost');
+            if (timerMinutesSpan) timerMinutesSpan.textContent = hostTimerMinutes;
+            updateHostSummary();
+        }
+    };
+}
 
-document.getElementById('incTimeHost').onclick = () => {
-    if (hostTimerMinutes < 5) {
-        hostTimerMinutes++;
-        document.getElementById('timerMinutesHost').textContent = hostTimerMinutes;
-        updateHostSummary();
-    }
-};
+const incTimeHost = document.getElementById('incTimeHost');
+if (incTimeHost) {
+    incTimeHost.onclick = () => {
+        if (hostTimerMinutes < 5) {
+            hostTimerMinutes++;
+            const timerMinutesSpan = document.getElementById('timerMinutesHost');
+            if (timerMinutesSpan) timerMinutesSpan.textContent = hostTimerMinutes;
+            updateHostSummary();
+        }
+    };
+}
 
 document.querySelectorAll('input[name="draftTypeHost"]').forEach(radio => {
     radio.onchange = () => updateHostSummary();
@@ -277,96 +330,113 @@ document.querySelectorAll('input[name="dynamicDraftType"]').forEach(radio => {
     radio.onchange = () => updateHostSummary();
 });
 
-document.getElementById('clearCategoryBtn').onclick = () => {
-    hostSelectedCategory = null;
-    hostSelectedCategoryName = null;
-    document.getElementById('selectedCategoryDisplay').style.display = 'none';
-    document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
-    updateHostSummary();
-};
-
-document.getElementById('clearTemplateBtn').onclick = () => {
-    hostSelectedTemplate = null;
-    hostSelectedTemplateName = null;
-    hostSelectedTemplateSlots = [];
-    document.getElementById('selectedTemplateDisplay').style.display = 'none';
-    document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
-    updateHostSummary();
-};
-
-document.getElementById('createLobbyBtn').onclick = () => {
-    if (draftMode === 'simple') {
-        if (!hostSelectedCategory) {
-            showToast('Please select a category', 3000);
-            return;
-        }
-        const totalPicks = hostNumPlayers * hostNumRounds;
-        if (totalPicks > hostSelectedCategoryCount) {
-            showToast(`Need ${totalPicks} items but only ${hostSelectedCategoryCount} available`, 4000);
-            return;
-        }
-    } else {
-        if (!hostSelectedTemplate) {
-            showToast('Please select a template', 3000);
-            return;
-        }
-    }
-    
-    const hostNameInput = document.getElementById('hostNameInput');
-    hostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
-    if (!hostName) hostName = 'Player 1';
-    
-    const simpleDraftOrder = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
-    const dynamicDraftOrder = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
-    
-    const config = {
-        isHost: true,
-        hostName: hostName,
-        numPlayers: hostNumPlayers,
-        draftMode: draftMode,
-        timerMinutes: hostTimerMinutes
+const clearCategoryBtn = document.getElementById('clearCategoryBtn');
+if (clearCategoryBtn) {
+    clearCategoryBtn.onclick = () => {
+        hostSelectedCategory = null;
+        hostSelectedCategoryName = null;
+        const selectedDisplay = document.getElementById('selectedCategoryDisplay');
+        if (selectedDisplay) selectedDisplay.style.display = 'none';
+        document.querySelectorAll('#categoryGridHost .category-card-small').forEach(c => c.classList.remove('selected'));
+        updateHostSummary();
     };
-    
-    if (draftMode === 'simple') {
-        config.category = hostSelectedCategory;
-        config.categoryName = hostSelectedCategoryName;
-        config.numRounds = hostNumRounds;
-        config.draftType = simpleDraftOrder;
-    } else {
-        config.templateName = hostSelectedTemplate;
-        config.templateDisplayName = hostSelectedTemplateName;
-        config.draftType = dynamicDraftOrder;
-    }
-    
-    localStorage.setItem('draftSetup', JSON.stringify(config));
-    window.location.href = 'draft.html';
-};
+}
 
-document.getElementById('joinGameBtn').onclick = () => {
-    const roomCode = document.getElementById('roomCodeInput').value.toUpperCase();
-    const playerName = document.getElementById('playerNameInput').value.trim();
-    
-    if (!roomCode || roomCode.length !== 6) {
-        showToast('Enter valid 6-character code', 3000);
-        return;
-    }
-    if (!playerName) {
-        showToast('Enter your name', 3000);
-        return;
-    }
-    
-    const config = {
-        isHost: false,
-        roomCode: roomCode,
-        playerName: playerName
+const clearTemplateBtn = document.getElementById('clearTemplateBtn');
+if (clearTemplateBtn) {
+    clearTemplateBtn.onclick = () => {
+        hostSelectedTemplate = null;
+        hostSelectedTemplateName = null;
+        hostSelectedTemplateSlots = [];
+        const selectedDisplay = document.getElementById('selectedTemplateDisplay');
+        if (selectedDisplay) selectedDisplay.style.display = 'none';
+        document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
+        updateHostSummary();
     };
-    
-    localStorage.setItem('draftSetup', JSON.stringify(config));
-    window.location.href = 'draft.html';
-};
+}
+
+const createLobbyBtn = document.getElementById('createLobbyBtn');
+if (createLobbyBtn) {
+    createLobbyBtn.onclick = () => {
+        if (draftMode === 'simple') {
+            if (!hostSelectedCategory) {
+                showToast('Please select a category', 3000);
+                return;
+            }
+            const totalPicks = hostNumPlayers * hostNumRounds;
+            if (totalPicks > hostSelectedCategoryCount) {
+                showToast(`Need ${totalPicks} items but only ${hostSelectedCategoryCount} available`, 4000);
+                return;
+            }
+        } else {
+            if (!hostSelectedTemplate) {
+                showToast('Please select a template', 3000);
+                return;
+            }
+        }
+        
+        const hostNameInput = document.getElementById('hostNameInput');
+        hostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
+        if (!hostName) hostName = 'Player 1';
+        
+        const simpleDraftOrder = document.querySelector('input[name="draftTypeHost"]:checked')?.value || 'snake';
+        const dynamicDraftOrder = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
+        
+        const config = {
+            isHost: true,
+            hostName: hostName,
+            numPlayers: hostNumPlayers,
+            draftMode: draftMode,
+            timerMinutes: hostTimerMinutes
+        };
+        
+        if (draftMode === 'simple') {
+            config.category = hostSelectedCategory;
+            config.categoryName = hostSelectedCategoryName;
+            config.numRounds = hostNumRounds;
+            config.draftType = simpleDraftOrder;
+        } else {
+            config.templateName = hostSelectedTemplate;
+            config.templateDisplayName = hostSelectedTemplateName;
+            config.draftType = dynamicDraftOrder;
+        }
+        
+        localStorage.setItem('draftSetup', JSON.stringify(config));
+        window.location.href = 'draft.html';
+    };
+}
+
+const joinGameBtn = document.getElementById('joinGameBtn');
+if (joinGameBtn) {
+    joinGameBtn.onclick = () => {
+        const roomCodeInput = document.getElementById('roomCodeInput');
+        const playerNameInput = document.getElementById('playerNameInput');
+        
+        const roomCode = roomCodeInput ? roomCodeInput.value.toUpperCase() : '';
+        const playerName = playerNameInput ? playerNameInput.value.trim() : '';
+        
+        if (!roomCode || roomCode.length !== 6) {
+            showToast('Enter valid 6-character code', 3000);
+            return;
+        }
+        if (!playerName) {
+            showToast('Enter your name', 3000);
+            return;
+        }
+        
+        const config = {
+            isHost: false,
+            roomCode: roomCode,
+            playerName: playerName
+        };
+        
+        localStorage.setItem('draftSetup', JSON.stringify(config));
+        window.location.href = 'draft.html';
+    };
+}
 
 // Initialize
-hostJoinScreen.style.display = 'block';
-hostSettingsScreen.style.display = 'none';
-joinSettingsScreen.style.display = 'none';
+if (hostJoinScreen) hostJoinScreen.style.display = 'block';
+if (hostSettingsScreen) hostSettingsScreen.style.display = 'none';
+if (joinSettingsScreen) joinSettingsScreen.style.display = 'none';
 updateHostSummary();
