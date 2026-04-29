@@ -97,8 +97,7 @@ function createPlayerCard(player) {
                     for (const syn of item.chemistryDetails.synergies) {
                         chemistryMoves.push({
                             type: 'synergy',
-                            text: `${syn.comboName || '✨ Bonus'} - ${item.name} & ${syn.with}`,
-                            points: syn.points
+                            text: `${syn.comboName || 'Bonus'} - ${item.name} & ${syn.with}`
                         });
                     }
                 }
@@ -106,8 +105,7 @@ function createPlayerCard(player) {
                     for (const con of item.chemistryDetails.conflicts) {
                         chemistryMoves.push({
                             type: 'conflict',
-                            text: `${con.comboName || '⚠️ Penalty'} - ${item.name} & ${con.with}`,
-                            points: con.points
+                            text: `${con.comboName || 'Penalty'} - ${item.name} & ${con.with}`
                         });
                     }
                 }
@@ -127,9 +125,6 @@ function createPlayerCard(player) {
     }
     chemistryMoves = uniqueMoves;
     
-    const totalChemistry = chemistryMoves.reduce((sum, move) => sum + move.points, 0);
-    const hasChemistry = chemistryMoves.length > 0;
-    
     card.innerHTML = `
         <div class="result-header" style="border-left-color: ${placeColor}">
             ${medalHtml}
@@ -137,7 +132,6 @@ function createPlayerCard(player) {
                 <div class="result-name ${placeClass}">${escapeHtml(player.playerName)}</div>
                 <div class="result-place ${placeClass}">${placeText}</div>
             </div>
-            ${hasChemistry ? `<div class="chemistry-badge ${totalChemistry > 0 ? 'positive' : 'negative'}">${totalChemistry > 0 ? '+' : ''}${totalChemistry} chemistry</div>` : ''}
         </div>
         
         <div class="result-details">
@@ -152,21 +146,19 @@ function createPlayerCard(player) {
                 </div>
             </div>
             
-            <div class="result-chemistry">
-                <div class="chemistry-title">✨ Chemistry Moves ✨</div>
-                <div class="chemistry-list">
-                    ${chemistryMoves.length > 0 
-                        ? chemistryMoves.map(move => `
+            ${chemistryMoves.length > 0 ? `
+                <div class="result-chemistry">
+                    <div class="chemistry-title">✨ Chemistry Moves ✨</div>
+                    <div class="chemistry-list">
+                        ${chemistryMoves.map(move => `
                             <div class="chemistry-item ${move.type}">
                                 <span class="chemistry-icon">${move.type === 'synergy' ? '✨' : '⚠️'}</span>
                                 <span class="chemistry-text">${escapeHtml(move.text)}</span>
-                                <span class="chemistry-points">${move.points > 0 ? `+${move.points}` : move.points}</span>
                             </div>
-                        `).join('')
-                        : '<div class="no-chemistry">No chemistry interactions</div>'
-                    }
+                        `).join('')}
+                    </div>
                 </div>
-            </div>
+            ` : ''}
         </div>
     `;
     
