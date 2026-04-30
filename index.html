@@ -49,6 +49,16 @@
         </div>
         
         <div class="config-content">
+            <!-- Your Name - MOVED TO TOP -->
+            <div class="config-card">
+                <div class="config-label">
+                    <span class="label-icon">👤</span>
+                    Your Name
+                </div>
+                <input type="text" id="hostNameInput" placeholder="Enter your name" maxlength="20" class="player-name-input" value="Player 1">
+                <div class="config-hint">How other players will see you</div>
+            </div>
+
             <!-- Number of Players -->
             <div class="config-card">
                 <div class="config-label">
@@ -63,39 +73,20 @@
                 <div class="config-hint">More players = longer draft</div>
             </div>
 
-            <!-- Draft Type Selection (Simple vs Dynamic) -->
+            <!-- Draft Mode Selection - DROPDOWN -->
             <div class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🎲</span>
                     Draft Mode
                 </div>
-                <div class="draft-type-options">
-                    <label class="draft-type-option">
-                        <input type="radio" name="draftTypeMode" value="simple" checked>
-                        <span class="draft-type-icon">📋</span>
-                        <span class="draft-type-name">Simple Draft</span>
-                        <span class="draft-type-desc">Pick any items from a single category</span>
-                    </label>
-                    <label class="draft-type-option">
-                        <input type="radio" name="draftTypeMode" value="dynamic">
-                        <span class="draft-type-icon">🎯</span>
-                        <span class="draft-type-name">Dynamic Draft</span>
-                        <span class="draft-type-desc">Fill specific slots (Main, Side, Drink, etc.)</span>
-                    </label>
-                </div>
+                <select id="draftModeSelect" class="draft-mode-select">
+                    <option value="simple">📋 Simple Draft - Pick any items from a single category</option>
+                    <option value="dynamic">🎯 Dynamic Draft - Fill specific slots (Main, Side, Drink, etc.)</option>
+                </select>
+                <div class="config-hint">Choose how you want to draft</div>
             </div>
 
-            <!-- Your Name -->
-            <div class="config-card">
-                <div class="config-label">
-                    <span class="label-icon">👤</span>
-                    Your Name
-                </div>
-                <input type="text" id="hostNameInput" placeholder="Enter your name" maxlength="20" class="player-name-input" value="Player 1">
-                <div class="config-hint">How other players will see you</div>
-            </div>
-
-            <!-- Simple Draft Category Selection (hidden initially) -->
+            <!-- Simple Draft Category Selection (visible by default) -->
             <div id="simpleCategoryCard" class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🎯</span>
@@ -203,6 +194,10 @@
                     Draft Summary
                 </div>
                 <div class="config-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">👤 Your Name:</span>
+                        <span id="summaryPlayerName" class="stat-value">Player 1</span>
+                    </div>
                     <div class="stat-item">
                         <span class="stat-label">👥 Players:</span>
                         <span id="summaryPlayers" class="stat-value">2</span>
