@@ -69,6 +69,7 @@ function getCategoryIcon(tableName) {
 }
 
 function updateHostSummary() {
+    const summaryPlayerName = document.getElementById('summaryPlayerName');
     const summaryPlayers = document.getElementById('summaryPlayers');
     const summaryDraftMode = document.getElementById('summaryDraftMode');
     const summaryCategory = document.getElementById('summaryCategory');
@@ -76,6 +77,11 @@ function updateHostSummary() {
     const summaryTotalPicks = document.getElementById('summaryTotalPicks');
     const summaryTimer = document.getElementById('summaryTimer');
     
+    // Get current host name from input
+    const hostNameInput = document.getElementById('hostNameInput');
+    const currentHostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
+    
+    if (summaryPlayerName) summaryPlayerName.textContent = currentHostName || 'Player 1';
     if (summaryPlayers) summaryPlayers.textContent = hostNumPlayers;
     if (summaryDraftMode) summaryDraftMode.textContent = draftMode === 'simple' ? '📋 Simple' : '🎯 Dynamic';
     
@@ -203,6 +209,17 @@ function toggleDraftModeUI() {
     updateHostSummary();
 }
 
+function setupDraftModeDropdown() {
+    const draftModeSelect = document.getElementById('draftModeSelect');
+    if (draftModeSelect) {
+        draftModeSelect.addEventListener('change', (e) => {
+            draftMode = e.target.value;
+            toggleDraftModeUI();
+            updateHostSummary();
+        });
+    }
+}
+
 // Event Listeners
 const hostOption = document.getElementById('hostOption');
 if (hostOption) {
@@ -215,13 +232,19 @@ if (hostOption) {
         const hostNameInput = document.getElementById('hostNameInput');
         if (hostNameInput) hostNameInput.value = 'Player 1';
         
-        const modeRadios = document.querySelectorAll('input[name="draftTypeMode"]');
-        modeRadios.forEach(radio => {
-            radio.onchange = () => {
-                draftMode = radio.value;
-                toggleDraftModeUI();
-            };
-        });
+        // Setup draft mode dropdown
+        setupDraftModeDropdown();
+        toggleDraftModeUI();
+        
+        // Update summary when name changes
+        if (hostNameInput) {
+            hostNameInput.addEventListener('input', () => updateHostSummary());
+        }
+        
+        // Reset draft mode select to default
+        const draftModeSelect = document.getElementById('draftModeSelect');
+        if (draftModeSelect) draftModeSelect.value = 'simple';
+        draftMode = 'simple';
         toggleDraftModeUI();
     };
 }
