@@ -210,16 +210,23 @@ function toggleDraftModeUI() {
 }
 
 function setupDraftModeCards() {
-    const modeCards = document.querySelectorAll('.draft-mode-card');
+    const modeCards = document.querySelectorAll('#draftModeGrid .category-card-small');
     modeCards.forEach(card => {
         card.addEventListener('click', () => {
+            // Remove selected class from all mode cards
             modeCards.forEach(c => c.classList.remove('selected'));
+            // Add selected class to clicked card
             card.classList.add('selected');
+            // Update draft mode
             draftMode = card.getAttribute('data-mode');
             toggleDraftModeUI();
             updateHostSummary();
         });
     });
+    
+    // Set default selected mode (simple)
+    const defaultCard = document.querySelector('#draftModeGrid .category-card-small[data-mode="simple"]');
+    if (defaultCard) defaultCard.classList.add('selected');
 }
 
 // Event Listeners

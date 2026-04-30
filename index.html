@@ -73,17 +73,25 @@
                 <div class="config-hint">More players = longer draft</div>
             </div>
 
-            <!-- Draft Mode Selection - DROPDOWN -->
+            <!-- Draft Mode Selection - STYLED LIKE CATEGORY SELECTION -->
             <div class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🎲</span>
                     Draft Mode
                 </div>
-                <select id="draftModeSelect" class="draft-mode-select">
-                    <option value="simple">📋 Simple Draft - Pick any items from a single category</option>
-                    <option value="dynamic">🎯 Dynamic Draft - Fill specific slots (Main, Side, Drink, etc.)</option>
-                </select>
-                <div class="config-hint">Choose how you want to draft</div>
+                <div id="draftModeGrid" class="category-grid-small">
+                    <div class="category-card-small" data-mode="simple">
+                        <span class="category-icon-small">📋</span>
+                        <span class="category-name-small">Simple Draft</span>
+                        <span class="category-count-small">Pick any items from a single category</span>
+                    </div>
+                    <div class="category-card-small" data-mode="dynamic">
+                        <span class="category-icon-small">🎯</span>
+                        <span class="category-name-small">Dynamic Draft</span>
+                        <span class="category-count-small">Fill specific slots (Main, Side, Drink, etc.)</span>
+                    </div>
+                </div>
+                <div class="config-hint">Click to select your preferred draft style</div>
             </div>
 
             <!-- Simple Draft Category Selection (visible by default) -->
