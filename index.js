@@ -209,15 +209,17 @@ function toggleDraftModeUI() {
     updateHostSummary();
 }
 
-function setupDraftModeDropdown() {
-    const draftModeSelect = document.getElementById('draftModeSelect');
-    if (draftModeSelect) {
-        draftModeSelect.addEventListener('change', (e) => {
-            draftMode = e.target.value;
+function setupDraftModeCards() {
+    const modeCards = document.querySelectorAll('.draft-mode-card');
+    modeCards.forEach(card => {
+        card.addEventListener('click', () => {
+            modeCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            draftMode = card.getAttribute('data-mode');
             toggleDraftModeUI();
             updateHostSummary();
         });
-    }
+    });
 }
 
 // Event Listeners
@@ -232,20 +234,12 @@ if (hostOption) {
         const hostNameInput = document.getElementById('hostNameInput');
         if (hostNameInput) hostNameInput.value = 'Player 1';
         
-        // Setup draft mode dropdown
-        setupDraftModeDropdown();
+        setupDraftModeCards();
         toggleDraftModeUI();
         
-        // Update summary when name changes
         if (hostNameInput) {
             hostNameInput.addEventListener('input', () => updateHostSummary());
         }
-        
-        // Reset draft mode select to default
-        const draftModeSelect = document.getElementById('draftModeSelect');
-        if (draftModeSelect) draftModeSelect.value = 'simple';
-        draftMode = 'simple';
-        toggleDraftModeUI();
     };
 }
 
@@ -425,7 +419,13 @@ if (createLobbyBtn) {
         }
         
         localStorage.setItem('draftSetup', JSON.stringify(config));
-        window.location.href = 'draft.html';
+        
+        // Redirect to appropriate draft page based on mode
+        if (draftMode === 'simple') {
+            window.location.href = 'draft.html';
+        } else {
+            window.location.href = 'dynamic-draft.html';
+        }
     };
 }
 

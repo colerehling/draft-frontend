@@ -1382,3 +1382,33 @@ footer {
     50% { opacity: 0.7; }
 }
 
+/* Draft Mode Select Dropdown */
+.draft-mode-select {
+    width: 100%;
+    padding: 12px 15px;
+    background: #1e293b;
+    border: 2px solid #facc15;
+    border-radius: 12px;
+    color: #eef2ff;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.draft-mode-select:hover {
+    background: #2d3a52;
+    border-color: #fbbf24;
+}
+
+.draft-mode-select:focus {
+    outline: none;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+
+.draft-mode-select option {
+    background: #1e293b;
+    color: #eef2ff;
+    padding: 10px;
+}
