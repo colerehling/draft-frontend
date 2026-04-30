@@ -398,18 +398,33 @@ function getFilteredItems() {
 }
 
 function startDraftGame(state) {
+    console.log('Starting draft game with state:', state);
+    
     gameStarted = true;
     
+    // HIDE LOBBY, SHOW DRAFT SCREEN
+    const lobbyScreen = document.getElementById('lobbyScreen');
+    const draftScreen = document.getElementById('draftScreen');
+    
+    if (lobbyScreen) lobbyScreen.style.display = 'none';
+    if (draftScreen) draftScreen.style.display = 'block';
+    
+    console.log('Lobby hidden, draft shown');
+    
     const gameConfig = JSON.parse(localStorage.getItem('gameConfig'));
-    document.getElementById('mainTitle').innerHTML = draftMode === 'dynamic' ? '🎯 DYNAMIC DRAFT' : '🎮 MULTIPLAYER DRAFT';
+    
+    const mainTitle = document.getElementById('mainTitle');
+    const subTitle = document.getElementById('subTitle');
+    
+    if (mainTitle) mainTitle.innerHTML = draftMode === 'dynamic' ? '🎯 DYNAMIC DRAFT' : '🎮 MULTIPLAYER DRAFT';
     
     let subtitleText = `Room: ${roomCode}`;
     if (draftMode === 'simple') {
-        subtitleText += ` | ${gameConfig.categoryName}`;
+        subtitleText += ` | ${gameConfig?.categoryName || 'Draft'}`;
     } else {
-        subtitleText += ` | ${gameConfig.templateDisplayName}`;
+        subtitleText += ` | ${gameConfig?.templateDisplayName || 'Dynamic Draft'}`;
     }
-    document.getElementById('subTitle').innerHTML = subtitleText;
+    if (subTitle) subTitle.innerHTML = subtitleText;
     
     playersData = state.players;
     numPlayers = state.players.length;
@@ -451,13 +466,19 @@ function startDraftGame(state) {
         timeRemaining = TIMER_DURATION;
     }
     
-    if (draftMode === 'simple') {
-        document.getElementById('categoryTitle').innerHTML = '📦 ' + (gameConfig.categoryName || 'Draft Pool');
-    } else {
-        document.getElementById('categoryTitle').innerHTML = '📦 ' + (gameConfig.templateDisplayName || 'Dynamic Draft');
+    const categoryTitle = document.getElementById('categoryTitle');
+    if (categoryTitle) {
+        if (draftMode === 'simple') {
+            categoryTitle.innerHTML = '📦 ' + (gameConfig?.categoryName || 'Draft Pool');
+        } else {
+            categoryTitle.innerHTML = '📦 ' + (gameConfig?.templateDisplayName || 'Dynamic Draft');
+        }
     }
     
+    // Force a re-render
     renderDraftScreen();
+    
+    console.log('Draft screen should now be visible');
 }
 
 function generateDraftOrder() {
