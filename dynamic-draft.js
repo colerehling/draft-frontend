@@ -182,7 +182,8 @@ function setupSocketListeners() {
         if (isMyTurn) {
             startTimer(data.timeRemaining);
             renderDraftScreen();
-            showToast(`🔥 YOUR TURN! Draft a ${templateSlots[currentSlotIndex]?.slot_name || 'item'}! 🔥`, 4000);
+            const currentSlot = templateSlots[currentSlotIndex];
+            showToast(`🔥 YOUR TURN! Draft a ${currentSlot?.slot_name || 'item'}! 🔥`, 4000);
         } else {
             stopTimer();
             renderDraftScreen();
@@ -310,13 +311,20 @@ function startDraftGame(state) {
     totalPicks = numPlayers * numRounds;
     playersItems = state.playersItems.map(items => [...items]);
     availableItems = [...state.availableItems];
+    
+    // Handle itemsWithScores - it could be an object or array
     itemsWithScores = {};
-    state.itemsWithScores.forEach(item => {
-        itemsWithScores[item.item_name] = item.score;
-    });
+    if (Array.isArray(state.itemsWithScores)) {
+        state.itemsWithScores.forEach(item => {
+            itemsWithScores[item.item_name] = item.score;
+        });
+    } else if (state.itemsWithScores && typeof state.itemsWithScores === 'object') {
+        itemsWithScores = state.itemsWithScores;
+    }
+    
     draftOrder = state.draftOrder;
     currentPickIndex = state.currentPickIndex;
-    currentSlotIndex = 0;
+    currentSlotIndex = state.currentSlotIndex || 0;
     currentRound = draftOrder[currentPickIndex]?.round || 1;
     TIMER_DURATION = state.timerSeconds;
     timeRemaining = TIMER_DURATION;
@@ -405,7 +413,8 @@ function renderDraftScreen() {
             let slotsHtml = '<div class="player-slots">';
             templateSlots.forEach((slot, idx) => {
                 const isFilled = playersItems[i] && playersItems[i].some(item => item.slot === slot.slot_name);
-                const slotClass = isFilled ? 'slot-filled' : 'slot-empty';
+                const isCurrentSlot = idx === currentSlotIndex && isCurrentTurn && !isDraftComplete;
+                const slotClass = isFilled ? 'slot-filled' : (isCurrentSlot ? 'slot-current' : 'slot-empty');
                 slotsHtml += `<div class="slot-item ${slotClass}">${getSlotIcon(slot.slot_name)} ${slot.slot_name} ${isFilled ? '✓' : '○'}</div>`;
             });
             slotsHtml += '</div>';
