@@ -30,13 +30,10 @@ let timeRemaining = 180;
 let TIMER_DURATION = 180;
 let playersItems = [];
 let availableItems = [];
-let itemsWithScores = {};
 let draftOrder = [];
 let draftOrderType = 'snake';
 let templateSlots = [];
 let currentSlotIndex = 0;
-let activeFilter = null;
-let slotItemsCache = {};
 let currentTemplateName = '';
 let currentTemplateDisplayName = '';
 
@@ -70,7 +67,7 @@ function loadSetup() {
         }));
         
         // Host loads items immediately
-        loadDynamicItems();
+        loadTemplateAndItems();
     } else {
         myPlayerName = config.playerName;
         roomCode = config.roomCode;
@@ -79,15 +76,54 @@ function loadSetup() {
     return true;
 }
 
+// Load template and items for dynamic draft
+async function loadTemplateAndItems() {
+    if (!currentTemplateName) return;
+    
+    try {
+        // Load slots
+        const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${currentTemplateName}/slots`);
+        const slotsData = await slotsResponse.json();
+        
+        if (slotsData.success) {
+            templateSlots = slotsData.slots;
+            numRounds = templateSlots.length;
+            console.log('Template slots loaded:', templateSlots);
+            
+            // Load items for each slot
+            for (const slot of templateSlots) {
+                const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${currentTemplateName}/${slot.slot_name}`);
+                const itemsData = await itemsResponse.json();
+                
+                if (itemsData.success) {
+                    // Store items for this slot
+                    slotItemsCache[slot.slot_name] = itemsData.items;
+                    console.log(`Loaded ${itemsData.items.length} items for ${slot.slot_name}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading template:', error);
+    }
+}
+
+// Cache for slot items
+let slotItemsCache = {};
+
+function getFilteredItems() {
+    if (currentSlotIndex < templateSlots.length) {
+        const currentSlot = templateSlots[currentSlotIndex];
+        const items = slotItemsCache[currentSlot.slot_name] || [];
+        return items.map(item => item.item_name);
+    }
+    return availableItems;
+}
+
 // Socket event handlers
 function setupSocketListeners() {
     socket.on('connect', () => {
         console.log('Socket connected:', socket.id);
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) {
-            statusEl.innerHTML = '🟢 Connected';
-            statusEl.style.color = '#10b981';
-        }
+        document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
         
         if (isHost) {
             createGameRoom();
@@ -98,53 +134,25 @@ function setupSocketListeners() {
     
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) {
-            statusEl.innerHTML = '🔴 Disconnected';
-            statusEl.style.color = '#ef4444';
-        }
+        document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
         showToast('Connection error!', 3000);
     });
     
-    socket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        const statusEl = document.getElementById('connectionStatus');
-        if (statusEl) {
-            statusEl.innerHTML = '🔴 Disconnected';
-            statusEl.style.color = '#ef4444';
-        }
-    });
-    
-    // Room info for joiners
-    socket.on('roomInfo', (info) => {
-        console.log('Received room info:', info);
-        if (info.templateName) {
-            currentTemplateName = info.templateName;
-            currentTemplateDisplayName = info.templateDisplayName;
-            // Immediately load dynamic items for joiner
-            loadDynamicItems();
-        }
-    });
-    
     socket.on('playerJoined', (players) => {
-        console.log('Players updated:', players);
         playersData = players;
         updatePlayersList();
     });
     
     socket.on('playerLeft', (players) => {
-        console.log('Player left:', players);
         playersData = players;
         updatePlayersList();
         showToast('A player left the game', 2000);
         if (isHost) {
-            const startBtn = document.getElementById('startGameBtn');
-            if (startBtn) startBtn.style.display = 'none';
+            document.getElementById('startGameBtn').style.display = 'none';
         }
     });
     
     socket.on('playerReadyUpdate', (players) => {
-        console.log('Player ready update:', players);
         playersData = players;
         updatePlayersList();
         
@@ -153,26 +161,39 @@ function setupSocketListeners() {
             const fullPlayers = players.length === numPlayers;
             
             if (allReady && fullPlayers) {
-                const startBtn = document.getElementById('startGameBtn');
-                if (startBtn) startBtn.style.display = 'block';
+                document.getElementById('startGameBtn').style.display = 'block';
                 showToast('All players ready! Click Start Game!', 3000);
             } else {
-                const startBtn = document.getElementById('startGameBtn');
-                if (startBtn) startBtn.style.display = 'none';
+                document.getElementById('startGameBtn').style.display = 'none';
             }
         }
     });
     
     socket.on('allPlayersReady', () => {
-        console.log('All players ready event');
         if (isHost) {
-            const startBtn = document.getElementById('startGameBtn');
-            if (startBtn) startBtn.style.display = 'block';
+            document.getElementById('startGameBtn').style.display = 'block';
+        }
+    });
+    
+    // Send template info to joiners
+    socket.on('getTemplateInfo', (roomCode, callback) => {
+        if (isHost && currentTemplateName) {
+            callback({
+                templateName: currentTemplateName,
+                templateDisplayName: currentTemplateDisplayName
+            });
         }
     });
     
     socket.on('draftStarted', async (state) => {
-        console.log('Draft started! State:', state);
+        console.log('Draft started!', state);
+        
+        // For joiners, get template info from state
+        if (!isHost && state.templateName) {
+            currentTemplateName = state.templateName;
+            currentTemplateDisplayName = state.templateDisplayName;
+            await loadTemplateAndItems();
+        }
         
         // Set game state
         gameStarted = true;
@@ -180,43 +201,27 @@ function setupSocketListeners() {
         numPlayers = state.players.length;
         draftOrder = state.draftOrder;
         currentPickIndex = state.currentPickIndex || 0;
-        currentSlotIndex = 0;
         
         numRounds = templateSlots.length;
         totalPicks = numPlayers * numRounds;
         
         playersItems = playersData.map(() => []);
-        availableItems = flattenAvailableItems();
-        itemsWithScores = {};
-        
-        // Build itemsWithScores from cache
-        for (const slot of templateSlots) {
-            const items = slotItemsCache[slot.slot_name] || [];
-            items.forEach(item => {
-                itemsWithScores[item.item_name] = item.score;
-            });
-        }
+        availableItems = getFilteredItems();
+        currentSlotIndex = 0;
         
         currentRound = draftOrder[currentPickIndex]?.round || 1;
         TIMER_DURATION = state.timerSeconds;
         timeRemaining = TIMER_DURATION;
         
         // Switch to draft screen
-        const lobbyScreen = document.getElementById('lobbyScreen');
-        const draftScreen = document.getElementById('draftScreen');
-        const mainTitle = document.getElementById('mainTitle');
-        const subTitle = document.getElementById('subTitle');
-        const categoryTitle = document.getElementById('categoryTitle');
-        const currentSlotNameSpan = document.getElementById('currentSlotName');
+        document.getElementById('lobbyScreen').style.display = 'none';
+        document.getElementById('draftScreen').style.display = 'block';
+        document.getElementById('mainTitle').innerHTML = '🎯 DYNAMIC DRAFT';
+        document.getElementById('subTitle').innerHTML = `Room: ${roomCode} | ${currentTemplateDisplayName}`;
+        document.getElementById('categoryTitle').innerHTML = '📦 ' + currentTemplateDisplayName;
         
-        if (lobbyScreen) lobbyScreen.style.display = 'none';
-        if (draftScreen) draftScreen.style.display = 'block';
-        if (mainTitle) mainTitle.innerHTML = '🎯 DYNAMIC DRAFT';
-        if (subTitle) subTitle.innerHTML = `Room: ${roomCode} | ${currentTemplateDisplayName}`;
-        if (categoryTitle) categoryTitle.innerHTML = '📦 ' + currentTemplateDisplayName;
-        
-        if (templateSlots.length > 0 && currentSlotNameSpan) {
-            currentSlotNameSpan.innerHTML = templateSlots[0].slot_name;
+        if (templateSlots.length > 0) {
+            document.getElementById('currentSlotName').innerHTML = templateSlots[0].slot_name;
         }
         
         renderDraftScreen();
@@ -244,27 +249,17 @@ function setupSocketListeners() {
     });
     
     socket.on('draftComplete', (results) => {
-        console.log('Draft complete!', results);
         localStorage.setItem('draftResults', JSON.stringify(results));
-        showToast('Draft complete! Redirecting to results...', 2000);
-        setTimeout(() => {
-            window.location.href = 'results.html';
-        }, 2000);
+        showToast('Draft complete! Redirecting...');
+        setTimeout(() => window.location.href = 'results.html', 2000);
     });
     
     socket.on('pickError', (error) => {
-        console.error('Pick error:', error);
         showToast(error, 2000);
     });
     
     socket.on('startDraftError', (error) => {
-        console.error('Start draft error:', error);
         showToast(error, 3000);
-        const startBtn = document.getElementById('startGameBtn');
-        if (startBtn) {
-            startBtn.disabled = false;
-            startBtn.textContent = '▶ Start Game';
-        }
     });
 }
 
@@ -281,97 +276,69 @@ function createGameRoom() {
         templateDisplayName: gameConfig.templateDisplayName
     };
     
-    console.log('Creating game with config:', config);
-    
     socket.emit('createGame', config, (response) => {
         if (response.success) {
             roomCode = response.roomCode;
-            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
-            const maxPlayersSpan = document.getElementById('maxPlayers');
-            const lobbyTitle = document.getElementById('lobbyTitle');
-            const lobbySubtitle = document.getElementById('lobbySubtitle');
-            
-            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
-            if (maxPlayersSpan) maxPlayersSpan.textContent = numPlayers;
-            if (lobbyTitle) lobbyTitle.innerHTML = '👑 You are the Host';
-            if (lobbySubtitle) lobbySubtitle.innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
-            
+            document.getElementById('roomCodeDisplay').textContent = roomCode;
+            document.getElementById('maxPlayers').textContent = numPlayers;
+            document.getElementById('lobbyTitle').innerHTML = '👑 You are the Host';
+            document.getElementById('lobbySubtitle').innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
             setupLobbyButtons();
-        } else {
-            console.error('Failed to create game:', response);
-            showToast('Failed to create game. Please try again.', 3000);
         }
     });
 }
 
 function joinGameRoom() {
-    console.log('Joining game room:', roomCode);
+    // First, get template info from host
+    socket.emit('getTemplateInfo', roomCode, async (info) => {
+        if (info) {
+            currentTemplateName = info.templateName;
+            currentTemplateDisplayName = info.templateDisplayName;
+            await loadTemplateAndItems();
+            console.log('Joiner loaded template:', currentTemplateName);
+        }
+    });
     
     socket.emit('joinGame', { roomCode: roomCode, playerName: myPlayerName }, (response) => {
         if (response.success) {
-            // Request room info to get template details
-            socket.emit('getRoomInfo', roomCode);
+            document.getElementById('roomCodeDisplay').textContent = roomCode;
+            document.getElementById('maxPlayers').textContent = '?';
+            document.getElementById('lobbyTitle').innerHTML = '🎮 Waiting for Host';
+            document.getElementById('lobbySubtitle').innerHTML = `Room: ${roomCode}`;
             
-            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
-            const lobbyTitle = document.getElementById('lobbyTitle');
-            const lobbySubtitle = document.getElementById('lobbySubtitle');
-            
-            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
-            if (lobbyTitle) lobbyTitle.innerHTML = '🎮 Waiting for Host';
-            if (lobbySubtitle) lobbySubtitle.innerHTML = `Room: ${roomCode}`;
-            
-            const readyDiv = document.getElementById('readyStatus');
-            if (readyDiv) readyDiv.style.display = 'block';
-            
-            const readyBtn = document.getElementById('readyBtn');
-            if (readyBtn) {
-                readyBtn.onclick = () => {
-                    socket.emit('playerReady', roomCode);
-                    readyBtn.disabled = true;
-                    readyBtn.textContent = '✓ Ready!';
-                    showToast('You are ready! Waiting for host...', 2000);
-                };
-            }
+            document.getElementById('readyStatus').style.display = 'block';
+            document.getElementById('readyBtn').onclick = () => {
+                socket.emit('playerReady', roomCode);
+                document.getElementById('readyBtn').disabled = true;
+                document.getElementById('readyBtn').textContent = '✓ Ready!';
+                showToast('You are ready! Waiting for host...', 2000);
+            };
         } else {
             showToast(response.error, 3000);
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 2000);
+            setTimeout(() => window.location.href = 'index.html', 2000);
         }
     });
 }
 
 function setupLobbyButtons() {
-    const copyBtn = document.getElementById('copyRoomCodeBtn');
-    if (copyBtn) {
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(roomCode);
-            showToast('Room code copied!', 1500);
-        };
-    }
+    document.getElementById('copyRoomCodeBtn').onclick = () => {
+        navigator.clipboard.writeText(roomCode);
+        showToast('Room code copied!', 1500);
+    };
     
-    const cancelBtn = document.getElementById('cancelGameBtn');
-    if (cancelBtn) {
-        cancelBtn.onclick = () => {
-            window.location.href = 'index.html';
-        };
-    }
+    document.getElementById('cancelGameBtn').onclick = () => {
+        window.location.href = 'index.html';
+    };
     
-    const startBtn = document.getElementById('startGameBtn');
-    if (startBtn) {
-        startBtn.onclick = () => {
-            console.log('Starting draft for room:', roomCode);
-            socket.emit('startDraft', roomCode);
-            startBtn.disabled = true;
-            startBtn.textContent = 'Starting...';
-        };
-    }
+    document.getElementById('startGameBtn').onclick = () => {
+        socket.emit('startDraft', roomCode);
+        document.getElementById('startGameBtn').disabled = true;
+        document.getElementById('startGameBtn').textContent = 'Starting...';
+    };
 }
 
 function updatePlayersList() {
     const container = document.getElementById('playersList');
-    const playerCountSpan = document.getElementById('playerCount');
-    
     if (!container) return;
     
     container.innerHTML = '';
@@ -386,97 +353,7 @@ function updatePlayersList() {
         `;
         container.appendChild(div);
     });
-    
-    if (playerCountSpan) playerCountSpan.textContent = playersData.length;
-}
-
-async function loadDynamicItems() {
-    const templateName = currentTemplateName;
-    
-    if (!templateName) {
-        console.error('No template name available for loading items');
-        return;
-    }
-    
-    console.log('Loading dynamic items for template:', templateName);
-    
-    try {
-        const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${templateName}/slots`);
-        const slotsData = await slotsResponse.json();
-        
-        if (slotsData.success) {
-            templateSlots = slotsData.slots;
-            numRounds = templateSlots.length;
-            console.log('Template slots loaded:', templateSlots);
-            
-            for (const slot of templateSlots) {
-                const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${templateName}/${slot.slot_name}`);
-                const itemsData = await itemsResponse.json();
-                
-                if (itemsData.success) {
-                    slotItemsCache[slot.slot_name] = itemsData.items;
-                    console.log(`Loaded ${itemsData.items.length} items for slot: ${slot.slot_name}`);
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error loading dynamic items:', error);
-        showToast('Error loading draft items', 3000);
-    }
-}
-
-function flattenAvailableItems() {
-    if (currentSlotIndex < templateSlots.length) {
-        const currentSlot = templateSlots[currentSlotIndex];
-        const items = slotItemsCache[currentSlot.slot_name] || [];
-        return items.map(item => item.item_name);
-    }
-    return [];
-}
-
-function updateFilterButtons() {
-    const filterContainer = document.getElementById('filterButtons');
-    if (!filterContainer) return;
-    
-    filterContainer.innerHTML = '';
-    
-    templateSlots.forEach(slot => {
-        const btn = document.createElement('button');
-        btn.className = `filter-btn ${activeFilter === slot.slot_name ? 'active' : ''}`;
-        btn.textContent = `${getSlotIcon(slot.slot_name)} ${slot.slot_name}`;
-        btn.onclick = () => {
-            if (activeFilter === slot.slot_name) {
-                activeFilter = null;
-            } else {
-                activeFilter = slot.slot_name;
-            }
-            renderDraftScreen();
-            updateFilterButtons();
-        };
-        filterContainer.appendChild(btn);
-    });
-}
-
-function getSlotIcon(slotName) {
-    const icons = {
-        'Main': '🍔', 'Side': '🍟', 'Drink': '🥤', 'Breakfast': '🍳', 'Dessert': '🍰',
-        'Action': '💥', 'Comedy': '😂', 'Snack': '🍿', 'Gear': '🏖️', 'Activity': '⚽'
-    };
-    return icons[slotName] || '📦';
-}
-
-function getFilteredItems() {
-    if (activeFilter && slotItemsCache[activeFilter]) {
-        return slotItemsCache[activeFilter].map(item => item.item_name);
-    }
-    
-    if (currentSlotIndex < templateSlots.length) {
-        const currentSlot = templateSlots[currentSlotIndex];
-        const items = slotItemsCache[currentSlot.slot_name] || [];
-        return items.map(item => item.item_name);
-    }
-    
-    return availableItems;
+    document.getElementById('playerCount').textContent = playersData.length;
 }
 
 function renderDraftScreen() {
@@ -508,6 +385,7 @@ function renderDraftScreen() {
         poolCountSpan.innerText = `${itemsToShow.length} items (${totalPicks - currentPickIndex} picks left)`;
     }
     
+    // Render available items
     if (availableContainer) {
         const itemsToShow = getFilteredItems();
         
@@ -536,6 +414,7 @@ function renderDraftScreen() {
         }
     }
     
+    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -545,15 +424,16 @@ function renderDraftScreen() {
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
+            // Build slots HTML
             let slotsHtml = '<div class="player-slots">';
             templateSlots.forEach((slot, idx) => {
                 const isFilled = playersItems[i] && playersItems[i].some(item => item.slot === slot.slot_name);
-                const isCurrentSlot = idx === currentSlotIndex && isCurrentTurn && !isDraftComplete;
-                const slotClass = isFilled ? 'slot-filled' : (isCurrentSlot ? 'slot-current' : 'slot-empty');
+                const slotClass = isFilled ? 'slot-filled' : 'slot-empty';
                 slotsHtml += `<div class="slot-item ${slotClass}">${getSlotIcon(slot.slot_name)} ${slot.slot_name} ${isFilled ? '✓' : '○'}</div>`;
             });
             slotsHtml += '</div>';
             
+            // Build items HTML
             let itemsHtml = '<div class="drafted-list">';
             if (!playersItems[i] || playersItems[i].length === 0) {
                 itemsHtml += '<div class="empty-state">✨ No picks yet</div>';
@@ -588,8 +468,7 @@ function renderDraftScreen() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (gameStarted && isMyTurn) {
-                const currentSlot = templateSlots[currentSlotIndex];
-                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Draft a ${currentSlot?.slot_name || 'item'}! 🎯`;
+                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Draft a ${templateSlots[currentSlotIndex]?.slot_name || 'item'}! 🎯`;
                 turnMessageSpan.style.color = '#facc15';
             } else {
                 turnMessageSpan.innerHTML = `${currentPlayerName}'s turn...`;
@@ -597,12 +476,6 @@ function renderDraftScreen() {
             }
         }
     }
-    
-    const filterBar = document.getElementById('filterBar');
-    if (filterBar) {
-        filterBar.style.display = (gameStarted && !isDraftComplete && isMyTurn) ? 'flex' : 'none';
-    }
-    updateFilterButtons();
 }
 
 function makePick(item) {
@@ -616,29 +489,17 @@ function makePick(item) {
         return;
     }
     
-    if (currentSlotIndex < templateSlots.length) {
-        const currentSlot = templateSlots[currentSlotIndex];
-        const validItems = slotItemsCache[currentSlot.slot_name] || [];
-        const isValid = validItems.some(i => i.item_name === item);
-        
-        if (!isValid) {
-            showToast(`Please select a ${currentSlot.slot_name} item!`, 2000);
-            return;
-        }
-    }
-    
-    console.log('Emitting makePick for item:', item);
     socket.emit('makePick', { roomCode: roomCode, itemName: item });
 }
 
 function applyPick(data) {
-    console.log('Applying pick for all players:', data);
-    
+    // Remove from available items if present
     const itemIndex = availableItems.indexOf(data.item);
     if (itemIndex !== -1) {
         availableItems.splice(itemIndex, 1);
     }
     
+    // Find player
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
         if (playersData[i].name === data.playerName) {
@@ -649,25 +510,20 @@ function applyPick(data) {
     
     if (playerIndex !== -1) {
         if (!playersItems[playerIndex]) playersItems[playerIndex] = [];
-        
-        const currentSlot = templateSlots[currentSlotIndex];
         playersItems[playerIndex].push({
             name: data.item,
-            slot: currentSlot?.slot_name,
-            score: data.score || 0
+            slot: templateSlots[currentSlotIndex]?.slot_name
         });
-        
-        currentSlotIndex++;
     }
     
+    currentSlotIndex++;
     currentPickIndex++;
     if (currentPickIndex < draftOrder.length) {
         currentRound = draftOrder[currentPickIndex].round;
     }
     
-    if (templateSlots.length > 0) {
-        availableItems = flattenAvailableItems();
-    }
+    // Refresh available items for next slot
+    availableItems = getFilteredItems();
     
     renderDraftScreen();
 }
@@ -678,15 +534,20 @@ function getCurrentPlayerIndex() {
 }
 
 function getPlayerName(playerIndex) {
-    if (playersData && playersData[playerIndex]) {
-        return playersData[playerIndex].name;
-    }
-    return 'Player ' + (playerIndex + 1);
+    return playersData && playersData[playerIndex] ? playersData[playerIndex].name : 'Player ' + (playerIndex + 1);
 }
 
 function getPlayerIcon(index) {
     const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
     return icons[index % icons.length];
+}
+
+function getSlotIcon(slotName) {
+    const icons = {
+        'Main': '🍔', 'Side': '🍟', 'Drink': '🥤', 'Breakfast': '🍳', 'Dessert': '🍰',
+        'Action': '💥', 'Comedy': '😂', 'Snack': '🍿', 'Gear': '🏖️', 'Activity': '⚽'
+    };
+    return icons[slotName] || '📦';
 }
 
 function startTimer(duration) {
@@ -730,12 +591,7 @@ function updateTimerDisplay() {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, m => {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
+    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
 }
 
 function showToast(message, duration = 2200) {
@@ -743,62 +599,43 @@ function showToast(message, duration = 2200) {
     if (toastEl) {
         toastEl.innerText = message;
         toastEl.style.opacity = '1';
-        setTimeout(() => {
-            toastEl.style.opacity = '0';
-        }, duration);
+        setTimeout(() => toastEl.style.opacity = '0', duration);
     }
 }
 
 // Initialize
 function init() {
-    console.log('Initializing dynamic draft page');
     if (!loadSetup()) return;
     
-    const lobbyScreen = document.getElementById('lobbyScreen');
-    const draftScreen = document.getElementById('draftScreen');
-    if (lobbyScreen) lobbyScreen.style.display = 'block';
-    if (draftScreen) draftScreen.style.display = 'none';
+    document.getElementById('lobbyScreen').style.display = 'block';
+    document.getElementById('draftScreen').style.display = 'none';
     
     socket = io(SOCKET_URL, {
         transports: ['polling'],
-        withCredentials: true,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        withCredentials: true
     });
     
     setupSocketListeners();
     
-    const backBtn = document.getElementById('backToLobbyBtn');
-    if (backBtn) {
-        backBtn.onclick = () => {
-            window.location.href = 'index.html';
-        };
-    }
+    document.getElementById('backToLobbyBtn').onclick = () => {
+        window.location.href = 'index.html';
+    };
     
-    const resetBtn = document.getElementById('resetGameBtn');
-    if (resetBtn) {
-        resetBtn.onclick = () => {
-            if (confirm('Reset the current draft?')) {
-                window.location.reload();
-            }
-        };
-    }
+    document.getElementById('resetGameBtn').onclick = () => {
+        if (confirm('Reset the current draft?')) {
+            window.location.reload();
+        }
+    };
     
-    const autoBtn = document.getElementById('forceEndTurnBtn');
-    if (autoBtn) {
-        autoBtn.onclick = () => {
-            if (isMyTurn && availableItems.length > 0) {
-                const itemsToPick = getFilteredItems();
-                if (itemsToPick.length > 0) {
-                    const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
-                    makePick(randomItem);
-                }
-            } else if (!isMyTurn) {
-                showToast("Not your turn!", 2000);
+    document.getElementById('forceEndTurnBtn').onclick = () => {
+        if (isMyTurn && availableItems.length > 0) {
+            const itemsToPick = getFilteredItems();
+            if (itemsToPick.length > 0) {
+                const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
+                makePick(randomItem);
             }
-        };
-    }
+        }
+    };
     
     showToast('Waiting for game to start...', 3000);
 }
