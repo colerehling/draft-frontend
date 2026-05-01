@@ -22,7 +22,7 @@ let hostSelectedCategoryName = null;
 let hostSelectedCategoryCount = 0;
 let hostSelectedTemplate = null;
 let hostSelectedTemplateName = null;
-let hostSelectedTemplateSlots = [];
+let hostSelectedTemplateRounds = 0;
 let hostName = 'Player 1';
 let draftMode = 'simple'; // 'simple' or 'dynamic'
 
@@ -77,7 +77,6 @@ function updateHostSummary() {
     const summaryTotalPicks = document.getElementById('summaryTotalPicks');
     const summaryTimer = document.getElementById('summaryTimer');
     
-    // Get current host name from input
     const hostNameInput = document.getElementById('hostNameInput');
     const currentHostName = hostNameInput ? hostNameInput.value.trim() : 'Player 1';
     
@@ -94,8 +93,7 @@ function updateHostSummary() {
         if (summaryCategory) summaryCategory.textContent = hostSelectedTemplateName || 'Not selected';
         const dynamicDraftType = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
         if (summaryDraftType) summaryDraftType.textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
-        const totalPicks = hostNumPlayers * (hostSelectedTemplateSlots?.length || 0);
-        if (summaryTotalPicks) summaryTotalPicks.textContent = totalPicks;
+        if (summaryTotalPicks) summaryTotalPicks.textContent = hostNumPlayers * hostSelectedTemplateRounds;
     }
     
     if (summaryTimer) summaryTimer.textContent = hostTimerMinutes + ' min';
@@ -153,14 +151,14 @@ async function loadDynamicTemplates() {
                 card.innerHTML = `
                     <span class="category-icon-small">${getCategoryIcon(template.template_name)}</span>
                     <span class="category-name-small">${template.display_name}</span>
-                    <span class="category-count-small">${template.total_rounds} slots</span>
+                    <span class="category-count-small">${template.total_rounds} rounds</span>
                 `;
                 card.onclick = () => {
                     document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     hostSelectedTemplate = template.template_name;
                     hostSelectedTemplateName = template.display_name;
-                    hostSelectedTemplateSlots = template.slots || [];
+                    hostSelectedTemplateRounds = template.total_rounds;
                     const selectedDisplay = document.getElementById('selectedTemplateDisplay');
                     const selectedNameSpan = document.getElementById('selectedTemplateName');
                     const selectedRoundsSpan = document.getElementById('selectedTemplateRounds');
@@ -173,6 +171,7 @@ async function loadDynamicTemplates() {
             });
         }
     } catch (error) {
+        console.error('Error loading dynamic templates:', error);
         showToast('Failed to load dynamic templates', 3000);
     }
 }
@@ -201,6 +200,7 @@ function toggleDraftModeUI() {
     } else {
         hostSelectedTemplate = null;
         hostSelectedTemplateName = null;
+        hostSelectedTemplateRounds = 0;
         const selectedDisplay = document.getElementById('selectedTemplateDisplay');
         if (selectedDisplay) selectedDisplay.style.display = 'none';
         document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
@@ -213,18 +213,14 @@ function setupDraftModeCards() {
     const modeCards = document.querySelectorAll('#draftModeGrid .category-card-small');
     modeCards.forEach(card => {
         card.addEventListener('click', () => {
-            // Remove selected class from all mode cards
             modeCards.forEach(c => c.classList.remove('selected'));
-            // Add selected class to clicked card
             card.classList.add('selected');
-            // Update draft mode
             draftMode = card.getAttribute('data-mode');
             toggleDraftModeUI();
             updateHostSummary();
         });
     });
     
-    // Set default selected mode (simple)
     const defaultCard = document.querySelector('#draftModeGrid .category-card-small[data-mode="simple"]');
     if (defaultCard) defaultCard.classList.add('selected');
 }
@@ -371,7 +367,7 @@ if (clearTemplateBtn) {
     clearTemplateBtn.onclick = () => {
         hostSelectedTemplate = null;
         hostSelectedTemplateName = null;
-        hostSelectedTemplateSlots = [];
+        hostSelectedTemplateRounds = 0;
         const selectedDisplay = document.getElementById('selectedTemplateDisplay');
         if (selectedDisplay) selectedDisplay.style.display = 'none';
         document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
@@ -427,7 +423,6 @@ if (createLobbyBtn) {
         
         localStorage.setItem('draftSetup', JSON.stringify(config));
         
-        // Redirect to appropriate draft page based on mode
         if (draftMode === 'simple') {
             window.location.href = 'draft.html';
         } else {
