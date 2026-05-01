@@ -34,10 +34,11 @@ let itemsWithScores = {};
 let draftOrder = [];
 let draftOrderType = 'snake';
 let templateSlots = [];
-let currentSlotIndex = 0;
+let currentTemplateName = '';
 let currentTemplateDisplayName = '';
 let slotItemsCache = {};
-let playerFilledSlots = []; // Track which slots each player has filled
+let playerFilledSlots = [];
+let itemsLoaded = false;
 
 // Load setup from localStorage
 function loadSetup() {
@@ -56,11 +57,12 @@ function loadSetup() {
         numPlayers = config.numPlayers;
         TIMER_DURATION = config.timerMinutes * 60;
         timeRemaining = TIMER_DURATION;
+        currentTemplateName = config.templateName;
         currentTemplateDisplayName = config.templateDisplayName;
         draftOrderType = config.draftType || 'snake';
         
         localStorage.setItem('gameConfig', JSON.stringify({
-            templateName: config.templateName,
+            templateName: currentTemplateName,
             templateDisplayName: currentTemplateDisplayName,
             numPlayers: numPlayers,
             timerMinutes: config.timerMinutes,
@@ -68,8 +70,8 @@ function loadSetup() {
             draftType: draftOrderType
         }));
         
-        // Load template items for host
-        loadTemplateItems(config.templateName);
+        // Host loads items immediately
+        loadTemplateItems();
     } else {
         myPlayerName = config.playerName;
         roomCode = config.roomCode;
@@ -79,14 +81,17 @@ function loadSetup() {
 }
 
 // Load template items
-async function loadTemplateItems(templateName) {
+async function loadTemplateItems() {
     try {
-        const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${templateName}/slots`);
+        console.log('Loading template items for:', currentTemplateName);
+        
+        const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${currentTemplateName}/slots`);
         const slotsData = await slotsResponse.json();
         
         if (slotsData.success) {
             templateSlots = slotsData.slots;
             numRounds = templateSlots.length;
+            console.log('Template slots loaded:', templateSlots);
             
             // Initialize playerFilledSlots
             playerFilledSlots = [];
@@ -94,12 +99,12 @@ async function loadTemplateItems(templateName) {
                 playerFilledSlots[i] = [];
             }
             
-            // Get items for each slot and build available items
+            // Get items for each slot
             availableItems = [];
             itemsWithScores = {};
             
             for (const slot of templateSlots) {
-                const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${templateName}/${slot.slot_name}`);
+                const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${currentTemplateName}/${slot.slot_name}`);
                 const itemsData = await itemsResponse.json();
                 if (itemsData.success) {
                     slotItemsCache[slot.slot_name] = itemsData.items;
@@ -111,8 +116,12 @@ async function loadTemplateItems(templateName) {
                         });
                         itemsWithScores[item.item_name] = item.score;
                     });
+                    console.log(`Loaded ${itemsData.items.length} items for ${slot.slot_name}`);
                 }
             }
+            
+            itemsLoaded = true;
+            console.log('Total available items:', availableItems.length);
             
             // Shuffle available items
             shuffleArray(availableItems);
@@ -151,6 +160,7 @@ function setupSocketListeners() {
     });
     
     socket.on('playerJoined', (players) => {
+        console.log('Players updated:', players);
         playersData = players;
         updatePlayersList();
     });
@@ -187,12 +197,47 @@ function setupSocketListeners() {
         }
     });
     
+    // Receive game data from host (for joiners)
+    socket.on('gameData', (data) => {
+        console.log('Received game data from host:', data);
+        templateSlots = data.templateSlots;
+        availableItems = data.availableItems;
+        itemsWithScores = data.itemsWithScores;
+        numRounds = templateSlots.length;
+        itemsLoaded = true;
+        
+        // Initialize playerFilledSlots
+        playerFilledSlots = [];
+        for (let i = 0; i < numPlayers; i++) {
+            playerFilledSlots[i] = [];
+        }
+        
+        renderDraftScreen();
+    });
+    
     socket.on('draftStarted', (state) => {
         console.log('Draft started!', state);
+        
+        // If joiner hasn't loaded items yet, they'll get them from the state
+        if (!itemsLoaded && state.availableItems) {
+            availableItems = state.availableItems;
+            itemsWithScores = state.itemsWithScores;
+            templateSlots = state.templateSlots;
+            numRounds = templateSlots.length;
+            itemsLoaded = true;
+            
+            // Initialize playerFilledSlots
+            playerFilledSlots = [];
+            for (let i = 0; i < numPlayers; i++) {
+                playerFilledSlots[i] = [];
+            }
+        }
+        
         startDraftGame(state);
     });
     
     socket.on('turnChange', (data) => {
+        console.log('Turn change:', data);
         isMyTurn = (data.playerName === myPlayerName);
         
         if (isMyTurn) {
@@ -207,6 +252,7 @@ function setupSocketListeners() {
     });
     
     socket.on('pickMade', (data) => {
+        console.log('Pick made:', data);
         applyPick(data);
     });
     
@@ -258,6 +304,9 @@ function joinGameRoom() {
             document.getElementById('lobbyTitle').innerHTML = '🎮 Waiting for Host';
             document.getElementById('lobbySubtitle').innerHTML = `Room: ${roomCode}`;
             
+            // Request game data from host
+            socket.emit('requestGameData', roomCode);
+            
             const readyDiv = document.getElementById('readyStatus');
             readyDiv.style.display = 'block';
             const readyBtn = document.getElementById('readyBtn');
@@ -287,19 +336,15 @@ function setupLobbyButtons() {
     document.getElementById('startGameBtn').onclick = () => {
         console.log('Starting draft for room:', roomCode);
         
-        // Prepare game state to send to server
-        const gameState = {
-            availableItems: availableItems.map(item => ({
-                name: item.name,
-                category: item.category,
-                score: item.score
-            })),
-            itemsWithScores: itemsWithScores,
+        // Send game data to all players before starting
+        const gameData = {
             templateSlots: templateSlots,
-            numRounds: numRounds
+            availableItems: availableItems,
+            itemsWithScores: itemsWithScores
         };
+        socket.emit('broadcastGameData', { roomCode, gameData });
         
-        socket.emit('startDraft', roomCode, gameState);
+        socket.emit('startDraft', roomCode);
         document.getElementById('startGameBtn').disabled = true;
         document.getElementById('startGameBtn').textContent = 'Starting...';
     };
@@ -335,21 +380,9 @@ function startDraftGame(state) {
     
     playersData = state.players;
     numPlayers = state.players.length;
-    numRounds = templateSlots.length;
     totalPicks = numPlayers * numRounds;
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
-    
-    // Load items from state or use cached
-    if (state.availableItems) {
-        availableItems = state.availableItems;
-    }
-    if (state.itemsWithScores) {
-        itemsWithScores = state.itemsWithScores;
-    }
-    if (state.templateSlots) {
-        templateSlots = state.templateSlots;
-    }
     
     draftOrder = state.draftOrder;
     currentPickIndex = state.currentPickIndex;
@@ -367,6 +400,7 @@ function isCategoryAvailableForPlayer(playerIndex, category) {
 }
 
 function getAvailableItemsForPlayer(playerIndex) {
+    if (!availableItems || availableItems.length === 0) return [];
     return availableItems.filter(item => 
         isCategoryAvailableForPlayer(playerIndex, item.category)
     );
@@ -390,18 +424,20 @@ function renderDraftScreen() {
     
     // Get items available for the current player
     let itemsToShow = [];
-    if (!isDraftComplete && currentPlayerIndex !== -1) {
+    if (!isDraftComplete && currentPlayerIndex !== -1 && itemsLoaded) {
         itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
     }
     
     if (poolCountSpan) {
-        poolCountSpan.innerText = `${itemsToShow.length} items (${totalPicks - currentPickIndex} picks left)`;
+        poolCountSpan.innerText = `${itemsToShow.length} items available`;
     }
     
     // Render available items with category labels
     if (availableContainer) {
-        if (itemsToShow.length === 0 || isDraftComplete) {
-            availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
+        if (!itemsLoaded) {
+            availableContainer.innerHTML = '<div class="empty-state">⏳ Loading items...</div>';
+        } else if (itemsToShow.length === 0 || isDraftComplete) {
+            availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete or no available items!</div>';
         } else {
             availableContainer.innerHTML = '';
             itemsToShow.forEach(item => {
@@ -448,7 +484,7 @@ function renderDraftScreen() {
             
             // Build items HTML
             let itemsHtml = '<div class="drafted-list">';
-            if (playersItems[i].length === 0) {
+            if (!playersItems[i] || playersItems[i].length === 0) {
                 itemsHtml += '<div class="empty-state">✨ No picks yet</div>';
             } else {
                 playersItems[i].forEach((item, idx) => {
@@ -511,6 +547,7 @@ function makePick(item) {
         return;
     }
     
+    console.log('Making pick:', item);
     socket.emit('makePick', { 
         roomCode: roomCode, 
         itemName: item.name,
@@ -520,6 +557,8 @@ function makePick(item) {
 }
 
 function applyPick(data) {
+    console.log('Applying pick:', data);
+    
     // Find and remove item from available items
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) {
@@ -537,6 +576,7 @@ function applyPick(data) {
     
     if (playerIndex !== -1) {
         // Add the pick to player's items
+        if (!playersItems[playerIndex]) playersItems[playerIndex] = [];
         playersItems[playerIndex].push({
             name: data.item,
             category: data.category,
@@ -547,7 +587,9 @@ function applyPick(data) {
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
-        playerFilledSlots[playerIndex].push(data.category);
+        if (!playerFilledSlots[playerIndex].includes(data.category)) {
+            playerFilledSlots[playerIndex].push(data.category);
+        }
     }
     
     currentPickIndex++;
@@ -646,6 +688,7 @@ function showToast(message, duration = 2200) {
 
 // Initialize
 function init() {
+    console.log('Initializing dynamic draft page');
     if (!loadSetup()) return;
     
     document.getElementById('lobbyScreen').style.display = 'block';
