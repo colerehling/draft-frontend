@@ -68,6 +68,9 @@ function loadSetup() {
             hostName: myPlayerName,
             draftType: draftOrderType
         }));
+        
+        // Host loads items immediately
+        loadDynamicItems();
     } else {
         myPlayerName = config.playerName;
         roomCode = config.roomCode;
@@ -109,6 +112,17 @@ function setupSocketListeners() {
         if (statusEl) {
             statusEl.innerHTML = '🔴 Disconnected';
             statusEl.style.color = '#ef4444';
+        }
+    });
+    
+    // Room info for joiners
+    socket.on('roomInfo', (info) => {
+        console.log('Received room info:', info);
+        if (info.templateName) {
+            currentTemplateName = info.templateName;
+            currentTemplateDisplayName = info.templateDisplayName;
+            // Immediately load dynamic items for joiner
+            loadDynamicItems();
         }
     });
     
@@ -159,19 +173,6 @@ function setupSocketListeners() {
     
     socket.on('draftStarted', async (state) => {
         console.log('Draft started! State:', state);
-        
-        // For joining players, get template info from state
-        if (!isHost && state.templateName) {
-            currentTemplateName = state.templateName;
-            currentTemplateDisplayName = state.templateDisplayName;
-            console.log('Joiner received template:', currentTemplateName, currentTemplateDisplayName);
-        }
-        
-        // Load dynamic items - CRITICAL for joiners
-        await loadDynamicItems();
-        
-        console.log('Template slots loaded:', templateSlots);
-        console.log('Slot cache keys:', Object.keys(slotItemsCache));
         
         // Set game state
         gameStarted = true;
@@ -308,6 +309,9 @@ function joinGameRoom() {
     
     socket.emit('joinGame', { roomCode: roomCode, playerName: myPlayerName }, (response) => {
         if (response.success) {
+            // Request room info to get template details
+            socket.emit('getRoomInfo', roomCode);
+            
             const roomCodeDisplay = document.getElementById('roomCodeDisplay');
             const lobbyTitle = document.getElementById('lobbyTitle');
             const lobbySubtitle = document.getElementById('lobbySubtitle');
@@ -387,7 +391,6 @@ function updatePlayersList() {
 }
 
 async function loadDynamicItems() {
-    // Use the template name (for host it's already set, for joiners it's set in draftStarted)
     const templateName = currentTemplateName;
     
     if (!templateName) {
@@ -398,7 +401,6 @@ async function loadDynamicItems() {
     console.log('Loading dynamic items for template:', templateName);
     
     try {
-        // First, get the slots for this template
         const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${templateName}/slots`);
         const slotsData = await slotsResponse.json();
         
@@ -407,7 +409,6 @@ async function loadDynamicItems() {
             numRounds = templateSlots.length;
             console.log('Template slots loaded:', templateSlots);
             
-            // Then load items for each slot
             for (const slot of templateSlots) {
                 const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${templateName}/${slot.slot_name}`);
                 const itemsData = await itemsResponse.json();
@@ -544,7 +545,6 @@ function renderDraftScreen() {
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
-            // Build slots HTML
             let slotsHtml = '<div class="player-slots">';
             templateSlots.forEach((slot, idx) => {
                 const isFilled = playersItems[i] && playersItems[i].some(item => item.slot === slot.slot_name);
@@ -554,7 +554,6 @@ function renderDraftScreen() {
             });
             slotsHtml += '</div>';
             
-            // Build items HTML
             let itemsHtml = '<div class="drafted-list">';
             if (!playersItems[i] || playersItems[i].length === 0) {
                 itemsHtml += '<div class="empty-state">✨ No picks yet</div>';
@@ -617,7 +616,6 @@ function makePick(item) {
         return;
     }
     
-    // Validate the item belongs to the current slot
     if (currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
         const validItems = slotItemsCache[currentSlot.slot_name] || [];
@@ -636,14 +634,11 @@ function makePick(item) {
 function applyPick(data) {
     console.log('Applying pick for all players:', data);
     
-    // Remove from available items
     const itemIndex = availableItems.indexOf(data.item);
     if (itemIndex !== -1) {
         availableItems.splice(itemIndex, 1);
-        console.log(`Removed ${data.item} from available items`);
     }
     
-    // Find which player made the pick
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
         if (playersData[i].name === data.playerName) {
@@ -653,37 +648,27 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
-        // Initialize player's items array if needed
         if (!playersItems[playerIndex]) playersItems[playerIndex] = [];
         
-        // Add the pick to the player's items
         const currentSlot = templateSlots[currentSlotIndex];
-        const pickData = {
+        playersItems[playerIndex].push({
             name: data.item,
             slot: currentSlot?.slot_name,
             score: data.score || 0
-        };
-        playersItems[playerIndex].push(pickData);
-        console.log(`Added pick to player ${playerIndex}:`, pickData);
+        });
         
-        // Increment slot index for all players
         currentSlotIndex++;
-        console.log(`Slot index advanced to ${currentSlotIndex}`);
     }
     
-    // Update pick index for all players
     currentPickIndex++;
     if (currentPickIndex < draftOrder.length) {
         currentRound = draftOrder[currentPickIndex].round;
     }
     
-    // Refresh available items for the next slot
     if (templateSlots.length > 0) {
         availableItems = flattenAvailableItems();
-        console.log(`Available items refreshed, now ${availableItems.length} items`);
     }
     
-    // Re-render the screen for all players
     renderDraftScreen();
 }
 
@@ -739,8 +724,7 @@ function updateTimerDisplay() {
     }
     
     if (timerBarFillEl && TIMER_DURATION > 0) {
-        const percentage = (timeRemaining / TIMER_DURATION) * 100;
-        timerBarFillEl.style.width = Math.max(0, percentage) + '%';
+        timerBarFillEl.style.width = Math.max(0, (timeRemaining / TIMER_DURATION) * 100) + '%';
     }
 }
 
@@ -763,7 +747,6 @@ function showToast(message, duration = 2200) {
             toastEl.style.opacity = '0';
         }, duration);
     }
-    console.log('Toast:', message);
 }
 
 // Initialize
@@ -796,7 +779,7 @@ function init() {
     const resetBtn = document.getElementById('resetGameBtn');
     if (resetBtn) {
         resetBtn.onclick = () => {
-            if (confirm('Reset the current draft? All progress will be lost.')) {
+            if (confirm('Reset the current draft?')) {
                 window.location.reload();
             }
         };
