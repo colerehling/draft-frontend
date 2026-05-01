@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Draft | Slot-Based Drafting</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+<div class="draft-app">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <div>
+            <h1 id="mainTitle">🎯 DYNAMIC DRAFT</h1>
+            <div class="sub" id="subTitle">Slot-based drafting · Fill specific categories</div>
+        </div>
+        <div class="badge" id="connectionStatus">🔄 Connecting...</div>
+    </div>
+
+    <!-- LOBBY SCREEN (Waiting Room) -->
+    <div id="lobbyScreen" class="config-screen">
+        <div class="config-header">
+            <h2 id="lobbyTitle">🏠 Waiting for Players</h2>
+            <p id="lobbySubtitle">Share this code with friends to join</p>
+        </div>
+        
+        <div class="waiting-room-content">
+            <div class="room-code-box">
+                <span class="room-code-label">Room Code:</span>
+                <span id="roomCodeDisplay" class="room-code-value"></span>
+                <button id="copyRoomCodeBtn" class="copy-btn">📋 Copy</button>
+            </div>
+            
+            <div class="players-list-container">
+                <h3>Players (<span id="playerCount">0</span>/<span id="maxPlayers">0</span>)</h3>
+                <div id="playersList" class="players-list"></div>
+            </div>
+            
+            <div class="waiting-actions">
+                <button id="cancelGameBtn" class="secondary-btn">Cancel Game</button>
+                <button id="startGameBtn" class="primary-btn" style="display: none;">▶ Start Game</button>
+            </div>
+            
+            <div id="readyStatus" style="display: none;">
+                <button id="readyBtn" class="primary-btn">✅ Ready Up</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DRAFT SCREEN (Hidden until game starts) -->
+    <div id="draftScreen" style="display: none;">
+        <div class="turn-panel">
+            <div class="turn-badge">
+                <span class="turn-label">🎲 CURRENT TURN</span>
+                <span id="activePlayerName" class="active-player">Waiting...</span>
+            </div>
+            <div class="timer-container">
+                <span class="timer-icon">⏱️</span>
+                <span id="timerDisplay" class="timer-display">--:--</span>
+                <div class="timer-bar">
+                    <div id="timerBarFill" class="timer-bar-fill"></div>
+                </div>
+            </div>
+            <div class="turn-status">
+                <span class="lock-icon">⏳</span>
+                <span id="turnMessage">Waiting for draft to start...</span>
+            </div>
+            <button id="backToLobbyBtn" class="reset-btn">← Leave Game</button>
+        </div>
+
+        <!-- Current Slot Indicator -->
+        <div class="current-slot-indicator" id="currentSlotIndicator">
+            <span>🎯 Current Slot: <span id="currentSlotName">Loading...</span></span>
+        </div>
+
+        <!-- Filter Bar for Dynamic Draft -->
+        <div id="filterBar" class="filter-bar" style="display: none;">
+            <span class="filter-label">🔍 Quick Filter:</span>
+            <div id="filterButtons" class="filter-buttons"></div>
+            <button id="clearFilterBtn" class="clear-filter-btn">Clear Filter</button>
+        </div>
+
+        <div id="playersContainer" class="players-container"></div>
+
+        <div class="available-pool">
+            <div class="section-header">
+                <h2 id="categoryTitle">📦 Draft Pool</h2>
+                <span class="badge" id="poolCount">0 items</span>
+            </div>
+            <div id="availableList" class="item-list">
+                <div class="empty-state">⏳ Waiting for draft to start...</div>
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <button class="reset-btn" id="resetGameBtn">🔄 Reset Draft</button>
+            <button class="reset-all-btn" id="forceEndTurnBtn">⚡ Auto Draft</button>
+        </div>
+    </div>
+
+    <footer>🎯 Dynamic Draft - Fill each slot to build your perfect combination!</footer>
+</div>
+<div id="toastMsg" class="toast-msg" style="opacity:0;">✨</div>
+
+<script src="dynamic-draft.js"></script>
+</body>
+</html>
