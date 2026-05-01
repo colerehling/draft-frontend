@@ -269,14 +269,15 @@ async function startDraftGame(state) {
             if (data.success && data.items) {
                 availableItems = data.items.map(item => ({
                     name: item.item_name,
-                    category: item.category,
+                    category: item.category || 'General',
                     score: item.score
                 }));
                 itemsWithScores = {};
                 data.items.forEach(item => {
                     itemsWithScores[item.item_name] = item.score;
                 });
-                console.log(`Loaded ${availableItems.length} items with categories`);
+                console.log(`Loaded ${availableItems.length} items`);
+                console.log('Sample item:', availableItems[0]);
             }
         } catch (error) {
             console.error('Error loading items:', error);
@@ -334,11 +335,11 @@ function renderDraftScreen() {
                 const canDraft = gameStarted ? isMyTurn : false;
                 const card = document.createElement('div');
                 card.className = 'draft-card';
-                // Show category on the right side of the draft choice
+                // Show category on the right side (no icon, just text)
                 card.innerHTML = `
                     <div class="item-info">
                         <span class="item-name">${escapeHtml(item.name)}</span>
-                        <span class="item-category">${getCategoryIcon(item.category)} ${item.category}</span>
+                        <span class="item-category">${escapeHtml(item.category)}</span>
                     </div>
                     <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                         ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -371,7 +372,7 @@ function renderDraftScreen() {
                         : playersItems[i].map((item, idx) => `
                             <div class="drafted-item">
                                 <span>${idx + 1}. ${escapeHtml(item.name)}</span>
-                                ${item.category ? `<span class="item-category-tag">${getCategoryIcon(item.category)} ${item.category}</span>` : ''}
+                                ${item.category ? `<span class="item-category-tag">${escapeHtml(item.category)}</span>` : ''}
                             </div>
                         `).join('')
                     }
@@ -427,7 +428,7 @@ function applyPick(data) {
     if (playerIndex !== -1) {
         playersItems[playerIndex].push({ 
             name: data.item,
-            category: data.category,
+            category: data.category || 'General',
             score: data.score || 0
         });
     }
@@ -455,22 +456,6 @@ function getPlayerName(playerIndex) {
 function getPlayerIcon(index) {
     const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
     return icons[index % icons.length];
-}
-
-function getCategoryIcon(category) {
-    const icons = {
-        'Main': '🍔',
-        'Side': '🍟',
-        'Drink': '🥤',
-        'Breakfast': '🍳',
-        'Dessert': '🍰',
-        'Action': '💥',
-        'Comedy': '😂',
-        'Snack': '🍿',
-        'Gear': '🏖️',
-        'Activity': '⚽'
-    };
-    return icons[category] || '📦';
 }
 
 function startTimer(duration) {
