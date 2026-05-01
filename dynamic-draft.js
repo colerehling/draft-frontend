@@ -190,6 +190,8 @@ function createGameRoom() {
         templateDisplayName: gameConfig.templateDisplayName
     };
     
+    console.log('Creating game with config:', config);
+    
     socket.emit('createGame', config, (response) => {
         if (response.success) {
             roomCode = response.roomCode;
@@ -198,6 +200,9 @@ function createGameRoom() {
             document.getElementById('lobbyTitle').innerHTML = '👑 You are the Host';
             document.getElementById('lobbySubtitle').innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
             setupLobbyButtons();
+        } else {
+            console.error('Failed to create game:', response);
+            showToast('Failed to create game. Please try again.', 3000);
         }
     });
 }
@@ -643,9 +648,13 @@ function init() {
     document.getElementById('lobbyScreen').style.display = 'block';
     document.getElementById('draftScreen').style.display = 'none';
     
+    // Use polling only - avoids WebSocket issues on Render free tier
     socket = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'],
-        withCredentials: true
+        transports: ['polling'],
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
     });
     
     setupSocketListeners();
