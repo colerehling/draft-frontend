@@ -137,8 +137,9 @@ async function loadCategoriesForHost() {
     }
 }
 
-async function loadDynamicTemplates() {
+async function loadDynamicCategoriesForHost() {
     try {
+        // Same endpoint, just different API call
         const response = await fetch(`${API_BASE_URL}/dynamic-templates`);
         const data = await response.json();
         if (data.success && data.templates) {
@@ -169,9 +170,10 @@ async function loadDynamicTemplates() {
                 };
                 grid.appendChild(card);
             });
+            updateDbStatus('✅ Ready', '#10b981');
         }
     } catch (error) {
-        console.error('Error loading dynamic templates:', error);
+        updateDbStatus('❌ Error', '#ef4444');
         showToast('Failed to load dynamic templates', 3000);
     }
 }
@@ -191,6 +193,7 @@ function toggleDraftModeUI() {
     if (dynamicTemplateCard) dynamicTemplateCard.style.display = !isSimple ? 'block' : 'none';
     if (dynamicOrderCard) dynamicOrderCard.style.display = !isSimple ? 'block' : 'none';
     
+    // Clear selections when switching
     if (!isSimple) {
         hostSelectedCategory = null;
         hostSelectedCategoryName = null;
@@ -216,11 +219,18 @@ function setupDraftModeCards() {
             modeCards.forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             draftMode = card.getAttribute('data-mode');
+            // Reload the appropriate categories when mode changes
+            if (draftMode === 'simple') {
+                loadCategoriesForHost();
+            } else {
+                loadDynamicCategoriesForHost();
+            }
             toggleDraftModeUI();
             updateHostSummary();
         });
     });
     
+    // Set default selected mode (simple)
     const defaultCard = document.querySelector('#draftModeGrid .category-card-small[data-mode="simple"]');
     if (defaultCard) defaultCard.classList.add('selected');
 }
@@ -231,8 +241,10 @@ if (hostOption) {
     hostOption.onclick = () => {
         if (hostJoinScreen) hostJoinScreen.style.display = 'none';
         if (hostSettingsScreen) hostSettingsScreen.style.display = 'block';
+        
+        // Load both types of categories
         loadCategoriesForHost();
-        loadDynamicTemplates();
+        loadDynamicCategoriesForHost();
         
         const hostNameInput = document.getElementById('hostNameInput');
         if (hostNameInput) hostNameInput.value = 'Player 1';
@@ -243,6 +255,14 @@ if (hostOption) {
         if (hostNameInput) {
             hostNameInput.addEventListener('input', () => updateHostSummary());
         }
+        
+        // Reset selections
+        hostSelectedCategory = null;
+        hostSelectedCategoryName = null;
+        hostSelectedCategoryCount = 0;
+        hostSelectedTemplate = null;
+        hostSelectedTemplateName = null;
+        hostSelectedTemplateRounds = 0;
     };
 }
 
