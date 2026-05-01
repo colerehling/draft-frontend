@@ -23,7 +23,7 @@ let isMyTurn = false;
 let currentPickIndex = 0;
 let currentRound = 1;
 let numPlayers = 2;
-let numRounds = 5;
+let numRounds = 0;
 let totalPicks = 0;
 let timerInterval = null;
 let timeRemaining = 180;
@@ -82,7 +82,11 @@ function loadSetup() {
 function setupSocketListeners() {
     socket.on('connect', () => {
         console.log('Socket connected:', socket.id);
-        document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🟢 Connected';
+            statusEl.style.color = '#10b981';
+        }
         localStorage.setItem('mySocketId', socket.id);
         
         if (isHost) {
@@ -94,8 +98,21 @@ function setupSocketListeners() {
     
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🔴 Disconnected';
+            statusEl.style.color = '#ef4444';
+        }
         showToast('Connection error!', 3000);
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🔴 Disconnected';
+            statusEl.style.color = '#ef4444';
+        }
     });
     
     socket.on('playerJoined', (players) => {
@@ -105,15 +122,18 @@ function setupSocketListeners() {
     });
     
     socket.on('playerLeft', (players) => {
+        console.log('Player left:', players);
         playersData = players;
         updatePlayersList();
         showToast('A player left the game', 2000);
         if (isHost) {
-            document.getElementById('startGameBtn').style.display = 'none';
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) startBtn.style.display = 'none';
         }
     });
     
     socket.on('playerReadyUpdate', (players) => {
+        console.log('Player ready update:', players);
         playersData = players;
         updatePlayersList();
         
@@ -122,23 +142,54 @@ function setupSocketListeners() {
             const fullPlayers = players.length === numPlayers;
             
             if (allReady && fullPlayers) {
-                document.getElementById('startGameBtn').style.display = 'block';
+                const startBtn = document.getElementById('startGameBtn');
+                if (startBtn) startBtn.style.display = 'block';
                 showToast('All players ready! Click Start Game!', 3000);
             } else {
-                document.getElementById('startGameBtn').style.display = 'none';
+                const startBtn = document.getElementById('startGameBtn');
+                if (startBtn) startBtn.style.display = 'none';
             }
         }
     });
     
     socket.on('allPlayersReady', () => {
+        console.log('All players ready event');
         if (isHost) {
-            document.getElementById('startGameBtn').style.display = 'block';
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) startBtn.style.display = 'block';
         }
     });
     
     socket.on('draftStarted', async (state) => {
-        console.log('Draft started!', state);
-        await loadDynamicItems();
+        console.log('Draft started! Full state:', state);
+        
+        if (draftMode === 'dynamic') {
+            await loadDynamicItems();
+        }
+        
+        // Update all state variables from the server state
+        playersData = state.players;
+        numPlayers = state.players.length;
+        draftOrder = state.draftOrder;
+        playersItems = state.playersItems || playersData.map(() => []);
+        availableItems = [...state.availableItems];
+        itemsWithScores = state.itemsWithScores || itemsWithScores;
+        currentPickIndex = state.currentPickIndex || 0;
+        currentSlotIndex = state.currentSlotIndex || 0;
+        
+        if (draftMode === 'dynamic') {
+            numRounds = templateSlots.length;
+            totalPicks = numPlayers * numRounds;
+            availableItems = flattenAvailableItems();
+        } else {
+            numRounds = state.numRounds;
+            totalPicks = numPlayers * numRounds;
+        }
+        
+        currentRound = draftOrder[currentPickIndex]?.round || 1;
+        TIMER_DURATION = state.timerSeconds;
+        timeRemaining = TIMER_DURATION;
+        
         startDraftGame(state);
     });
     
@@ -159,21 +210,32 @@ function setupSocketListeners() {
     });
     
     socket.on('pickMade', (data) => {
+        console.log('Pick made event received:', data);
         applyPick(data);
     });
     
     socket.on('draftComplete', (results) => {
+        console.log('Draft complete!', results);
         localStorage.setItem('draftResults', JSON.stringify(results));
-        showToast('Draft complete! Redirecting...');
-        setTimeout(() => window.location.href = 'results.html', 2000);
+        showToast('Draft complete! Redirecting to results...', 2000);
+        setTimeout(() => {
+            window.location.href = 'results.html';
+        }, 2000);
     });
     
     socket.on('pickError', (error) => {
+        console.error('Pick error:', error);
         showToast(error, 2000);
     });
     
     socket.on('startDraftError', (error) => {
+        console.error('Start draft error:', error);
         showToast(error, 3000);
+        const startBtn = document.getElementById('startGameBtn');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.textContent = '▶ Start Game';
+        }
     });
 }
 
@@ -195,10 +257,16 @@ function createGameRoom() {
     socket.emit('createGame', config, (response) => {
         if (response.success) {
             roomCode = response.roomCode;
-            document.getElementById('roomCodeDisplay').textContent = roomCode;
-            document.getElementById('maxPlayers').textContent = numPlayers;
-            document.getElementById('lobbyTitle').innerHTML = '👑 You are the Host';
-            document.getElementById('lobbySubtitle').innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
+            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+            const maxPlayersSpan = document.getElementById('maxPlayers');
+            const lobbyTitle = document.getElementById('lobbyTitle');
+            const lobbySubtitle = document.getElementById('lobbySubtitle');
+            
+            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
+            if (maxPlayersSpan) maxPlayersSpan.textContent = numPlayers;
+            if (lobbyTitle) lobbyTitle.innerHTML = '👑 You are the Host';
+            if (lobbySubtitle) lobbySubtitle.innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
+            
             setupLobbyButtons();
         } else {
             console.error('Failed to create game:', response);
@@ -208,50 +276,71 @@ function createGameRoom() {
 }
 
 function joinGameRoom() {
+    console.log('Joining game room:', roomCode);
+    
     socket.emit('joinGame', { roomCode: roomCode, playerName: myPlayerName }, (response) => {
         if (response.success) {
-            document.getElementById('roomCodeDisplay').textContent = roomCode;
-            document.getElementById('maxPlayers').textContent = '?';
-            document.getElementById('lobbyTitle').innerHTML = '🎮 Waiting for Host';
-            document.getElementById('lobbySubtitle').innerHTML = `Room: ${roomCode}`;
+            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+            const lobbyTitle = document.getElementById('lobbyTitle');
+            const lobbySubtitle = document.getElementById('lobbySubtitle');
+            
+            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
+            if (lobbyTitle) lobbyTitle.innerHTML = '🎮 Waiting for Host';
+            if (lobbySubtitle) lobbySubtitle.innerHTML = `Room: ${roomCode}`;
             
             const readyDiv = document.getElementById('readyStatus');
-            readyDiv.style.display = 'block';
+            if (readyDiv) readyDiv.style.display = 'block';
+            
             const readyBtn = document.getElementById('readyBtn');
-            readyBtn.onclick = () => {
-                socket.emit('playerReady', roomCode);
-                readyBtn.disabled = true;
-                readyBtn.textContent = '✓ Ready!';
-                showToast('You are ready! Waiting for host...', 2000);
-            };
+            if (readyBtn) {
+                readyBtn.onclick = () => {
+                    socket.emit('playerReady', roomCode);
+                    readyBtn.disabled = true;
+                    readyBtn.textContent = '✓ Ready!';
+                    showToast('You are ready! Waiting for host...', 2000);
+                };
+            }
         } else {
             showToast(response.error, 3000);
-            setTimeout(() => window.location.href = 'index.html', 2000);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
         }
     });
 }
 
 function setupLobbyButtons() {
-    document.getElementById('copyRoomCodeBtn').onclick = () => {
-        navigator.clipboard.writeText(roomCode);
-        showToast('Room code copied!', 1500);
-    };
+    const copyBtn = document.getElementById('copyRoomCodeBtn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(roomCode);
+            showToast('Room code copied!', 1500);
+        };
+    }
     
-    document.getElementById('cancelGameBtn').onclick = () => {
-        window.location.href = 'index.html';
-    };
+    const cancelBtn = document.getElementById('cancelGameBtn');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            window.location.href = 'index.html';
+        };
+    }
     
-    document.getElementById('startGameBtn').onclick = () => {
-        console.log('Starting draft for room:', roomCode);
-        socket.emit('startDraft', roomCode);
-        document.getElementById('startGameBtn').disabled = true;
-        document.getElementById('startGameBtn').textContent = 'Starting...';
-    };
+    const startBtn = document.getElementById('startGameBtn');
+    if (startBtn) {
+        startBtn.onclick = () => {
+            console.log('Starting draft for room:', roomCode);
+            socket.emit('startDraft', roomCode);
+            startBtn.disabled = true;
+            startBtn.textContent = 'Starting...';
+        };
+    }
 }
 
 function updatePlayersList() {
     const container = document.getElementById('playersList');
     const playerCountSpan = document.getElementById('playerCount');
+    
+    if (!container) return;
     
     container.innerHTML = '';
     playersData.forEach((player, index) => {
@@ -266,7 +355,7 @@ function updatePlayersList() {
         container.appendChild(div);
     });
     
-    playerCountSpan.textContent = playersData.length;
+    if (playerCountSpan) playerCountSpan.textContent = playersData.length;
 }
 
 async function loadDynamicItems() {
@@ -359,27 +448,23 @@ function getFilteredItems() {
 function startDraftGame(state) {
     gameStarted = true;
     
-    document.getElementById('lobbyScreen').style.display = 'none';
-    document.getElementById('draftScreen').style.display = 'block';
-    document.getElementById('mainTitle').innerHTML = '🎯 DYNAMIC DRAFT';
-    document.getElementById('subTitle').innerHTML = `Room: ${roomCode} | ${currentTemplateDisplayName}`;
+    const lobbyScreen = document.getElementById('lobbyScreen');
+    const draftScreen = document.getElementById('draftScreen');
     
-    playersData = state.players;
-    numPlayers = state.players.length;
-    numRounds = templateSlots.length;
-    totalPicks = numPlayers * numRounds;
-    playersItems = playersData.map(() => []);
-    availableItems = flattenAvailableItems();
-    itemsWithScores = state.itemsWithScores || itemsWithScores;
-    draftOrder = state.draftOrder;
-    currentPickIndex = state.currentPickIndex || 0;
-    currentSlotIndex = 0;
-    currentRound = draftOrder[currentPickIndex]?.round || 1;
-    TIMER_DURATION = state.timerSeconds;
-    timeRemaining = TIMER_DURATION;
+    if (lobbyScreen) lobbyScreen.style.display = 'none';
+    if (draftScreen) draftScreen.style.display = 'block';
     
-    document.getElementById('categoryTitle').innerHTML = '📦 ' + currentTemplateDisplayName;
-    document.getElementById('currentSlotName').innerHTML = templateSlots[0]?.slot_name || 'Loading...';
+    const gameConfig = JSON.parse(localStorage.getItem('gameConfig'));
+    
+    const mainTitle = document.getElementById('mainTitle');
+    const subTitle = document.getElementById('subTitle');
+    const categoryTitle = document.getElementById('categoryTitle');
+    const currentSlotName = document.getElementById('currentSlotName');
+    
+    if (mainTitle) mainTitle.innerHTML = '🎯 DYNAMIC DRAFT';
+    if (subTitle) subTitle.innerHTML = `Room: ${roomCode} | ${currentTemplateDisplayName}`;
+    if (categoryTitle) categoryTitle.innerHTML = '📦 ' + currentTemplateDisplayName;
+    if (currentSlotName && templateSlots[0]) currentSlotName.innerHTML = templateSlots[0].slot_name;
     
     renderDraftScreen();
 }
@@ -421,7 +506,7 @@ function renderDraftScreen() {
         } else {
             availableContainer.innerHTML = '';
             itemsToShow.forEach(item => {
-                const canDraft = gameStarted ? isMyTurn : false;
+                const canDraft = gameStarted && isMyTurn;
                 const card = document.createElement('div');
                 card.className = 'draft-card';
                 card.innerHTML = `
@@ -518,6 +603,11 @@ function makePick(item) {
         return;
     }
     
+    if (!socket || !socket.connected) {
+        showToast("Not connected to server!", 2000);
+        return;
+    }
+    
     // Validate the item belongs to the current slot
     if (currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
@@ -530,13 +620,36 @@ function makePick(item) {
         }
     }
     
+    console.log('Emitting makePick for item:', item);
     socket.emit('makePick', { roomCode: roomCode, itemName: item });
+    
+    // Disable button briefly to prevent double-click
+    const btns = document.querySelectorAll('.draft-btn');
+    btns.forEach(btn => {
+        btn.disabled = true;
+    });
+    setTimeout(() => {
+        if (isMyTurn && gameStarted) {
+            btns.forEach(btn => {
+                if (btn.classList.contains('active-turn')) {
+                    btn.disabled = false;
+                }
+            });
+        }
+    }, 1000);
 }
 
 function applyPick(data) {
-    const itemIndex = availableItems.indexOf(data.item);
-    if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
+    console.log('Applying pick for all players:', data);
     
+    // Find the item in available items and remove it
+    const itemIndex = availableItems.indexOf(data.item);
+    if (itemIndex !== -1) {
+        availableItems.splice(itemIndex, 1);
+        console.log(`Removed ${data.item} from available items`);
+    }
+    
+    // Find which player made the pick
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
         if (playersData[i].name === data.playerName) {
@@ -546,20 +659,37 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
+        // Initialize player's items array if needed
         if (!playersItems[playerIndex]) playersItems[playerIndex] = [];
-        playersItems[playerIndex].push({
+        
+        // Add the pick to the player's items
+        const currentSlot = templateSlots[currentSlotIndex];
+        const pickData = {
             name: data.item,
-            slot: templateSlots[currentSlotIndex]?.slot_name
-        });
+            slot: currentSlot?.slot_name,
+            score: data.score || 0
+        };
+        playersItems[playerIndex].push(pickData);
+        console.log(`Added pick to player ${playerIndex}:`, pickData);
+        
+        // Increment slot index for all players
         currentSlotIndex++;
+        console.log(`Slot index advanced to ${currentSlotIndex}`);
     }
     
+    // Update pick index for all players
     currentPickIndex++;
     if (currentPickIndex < draftOrder.length) {
         currentRound = draftOrder[currentPickIndex].round;
     }
-    availableItems = flattenAvailableItems();
     
+    // Refresh available items for the next slot
+    if (draftMode === 'dynamic') {
+        availableItems = flattenAvailableItems();
+        console.log(`Available items refreshed, now ${availableItems.length} items`);
+    }
+    
+    // Re-render the screen for all players
     renderDraftScreen();
 }
 
@@ -627,7 +757,12 @@ function updateTimerDisplay() {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
+    return str.replace(/[&<>]/g, m => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
 
 function showToast(message, duration = 2200) {
@@ -639,16 +774,19 @@ function showToast(message, duration = 2200) {
             toastEl.style.opacity = '0';
         }, duration);
     }
+    console.log('Toast:', message);
 }
 
 // Initialize
 function init() {
+    console.log('Initializing dynamic draft page');
     if (!loadSetup()) return;
     
-    document.getElementById('lobbyScreen').style.display = 'block';
-    document.getElementById('draftScreen').style.display = 'none';
+    const lobbyScreen = document.getElementById('lobbyScreen');
+    const draftScreen = document.getElementById('draftScreen');
+    if (lobbyScreen) lobbyScreen.style.display = 'block';
+    if (draftScreen) draftScreen.style.display = 'none';
     
-    // Use polling only - avoids WebSocket issues on Render free tier
     socket = io(SOCKET_URL, {
         transports: ['polling'],
         withCredentials: true,
@@ -659,27 +797,36 @@ function init() {
     
     setupSocketListeners();
     
-    document.getElementById('backToLobbyBtn').onclick = () => {
-        window.location.href = 'index.html';
-    };
+    const backBtn = document.getElementById('backToLobbyBtn');
+    if (backBtn) {
+        backBtn.onclick = () => {
+            window.location.href = 'index.html';
+        };
+    }
     
-    document.getElementById('resetGameBtn').onclick = () => {
-        if (confirm('Reset the current draft?')) {
-            window.location.reload();
-        }
-    };
-    
-    document.getElementById('forceEndTurnBtn').onclick = () => {
-        if (isMyTurn) {
-            const itemsToPick = getFilteredItems();
-            if (itemsToPick.length > 0) {
-                const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
-                makePick(randomItem);
+    const resetBtn = document.getElementById('resetGameBtn');
+    if (resetBtn) {
+        resetBtn.onclick = () => {
+            if (confirm('Reset the current draft? All progress will be lost.')) {
+                window.location.reload();
             }
-        } else {
-            showToast("Not your turn!", 2000);
-        }
-    };
+        };
+    }
+    
+    const autoBtn = document.getElementById('forceEndTurnBtn');
+    if (autoBtn) {
+        autoBtn.onclick = () => {
+            if (isMyTurn && availableItems.length > 0) {
+                const itemsToPick = getFilteredItems();
+                if (itemsToPick.length > 0) {
+                    const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
+                    makePick(randomItem);
+                }
+            } else if (!isMyTurn) {
+                showToast("Not your turn!", 2000);
+            }
+        };
+    }
     
     showToast('Waiting for game to start...', 3000);
 }
