@@ -1413,3 +1413,22 @@ footer {
     padding: 10px;
 }
 
+/* Item category styling */
+.item-category {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-left: 10px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
+}
+
+.item-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
+    margin-right: 1rem;
+    flex-wrap: wrap;
+    gap: 8px;
+}
