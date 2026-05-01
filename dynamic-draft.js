@@ -39,6 +39,7 @@ let activeFilter = null;
 let slotItemsCache = {};
 let currentTemplateName = '';
 let currentTemplateDisplayName = '';
+let draftMode = 'dynamic'; // ADD THIS LINE - set to dynamic for this page
 
 // Load setup from localStorage
 function loadSetup() {
@@ -161,37 +162,40 @@ function setupSocketListeners() {
     });
     
     socket.on('draftStarted', async (state) => {
-        console.log('Draft started! Full state:', state);
-        
-        if (draftMode === 'dynamic') {
-            await loadDynamicItems();
-        }
-        
-        // Update all state variables from the server state
-        playersData = state.players;
-        numPlayers = state.players.length;
-        draftOrder = state.draftOrder;
-        playersItems = state.playersItems || playersData.map(() => []);
-        availableItems = [...state.availableItems];
-        itemsWithScores = state.itemsWithScores || itemsWithScores;
-        currentPickIndex = state.currentPickIndex || 0;
-        currentSlotIndex = state.currentSlotIndex || 0;
-        
-        if (draftMode === 'dynamic') {
-            numRounds = templateSlots.length;
-            totalPicks = numPlayers * numRounds;
-            availableItems = flattenAvailableItems();
-        } else {
-            numRounds = state.numRounds;
-            totalPicks = numPlayers * numRounds;
-        }
-        
-        currentRound = draftOrder[currentPickIndex]?.round || 1;
-        TIMER_DURATION = state.timerSeconds;
-        timeRemaining = TIMER_DURATION;
-        
-        startDraftGame(state);
-    });
+    console.log('Draft started! Full state:', state);
+    
+    // Always use dynamic mode for this page
+    const isDynamicMode = true;
+    
+    if (isDynamicMode) {
+        await loadDynamicItems();
+    }
+    
+    // Update all state variables from the server state
+    playersData = state.players;
+    numPlayers = state.players.length;
+    draftOrder = state.draftOrder;
+    playersItems = state.playersItems || playersData.map(() => []);
+    availableItems = [...state.availableItems];
+    itemsWithScores = state.itemsWithScores || itemsWithScores;
+    currentPickIndex = state.currentPickIndex || 0;
+    currentSlotIndex = state.currentSlotIndex || 0;
+    
+    if (isDynamicMode) {
+        numRounds = templateSlots.length;
+        totalPicks = numPlayers * numRounds;
+        availableItems = flattenAvailableItems();
+    } else {
+        numRounds = state.numRounds;
+        totalPicks = numPlayers * numRounds;
+    }
+    
+    currentRound = draftOrder[currentPickIndex]?.round || 1;
+    TIMER_DURATION = state.timerSeconds;
+    timeRemaining = TIMER_DURATION;
+    
+    startDraftGame(state);
+});
     
     socket.on('turnChange', (data) => {
         console.log('Turn change:', data);
