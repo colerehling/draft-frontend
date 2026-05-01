@@ -44,7 +44,9 @@ function updateDbStatus(message, color = '#facc15') {
 }
 
 function formatCategoryName(tableName) {
-    return tableName.replace(/_/g, ' ').split(' ').map(word => 
+    // Remove '_items' suffix for display if present
+    let displayName = tableName.replace(/_items$/i, '');
+    return displayName.replace(/_/g, ' ').split(' ').map(word => 
         word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
     ).join(' ');
 }
@@ -61,11 +63,8 @@ function getCategoryIcon(tableName) {
         'dog_breeds': '🐶',
         'animated_dogs': '🐕‍🦺',
         'fruits': '🍏',
-        'fast_food_meal': '🍔',
         'fast_food_meal_items': '🍔',
-        'movie_night': '🎬',
         'movie_night_items': '🎬',
-        'beach_day': '🏖️',
         'beach_day_items': '🏖️'
     };
     return iconMap[tableName] || '👽';
@@ -96,7 +95,6 @@ function updateHostSummary() {
         if (summaryCategory) summaryCategory.textContent = hostSelectedTemplateName || 'Not selected';
         const dynamicDraftType = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
         if (summaryDraftType) summaryDraftType.textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
-        // Use number_of_rounds for dynamic drafts
         if (summaryTotalPicks) summaryTotalPicks.textContent = hostNumPlayers * hostSelectedTemplateRounds;
     }
     
@@ -152,25 +150,23 @@ async function loadDynamicTemplates() {
             data.categories.forEach(template => {
                 const card = document.createElement('div');
                 card.className = 'category-card-small';
-                // Use number_of_rounds instead of number_of_items
-                const roundsCount = template.number_of_rounds || template.item_count || 0;
                 card.innerHTML = `
                     <span class="category-icon-small">${getCategoryIcon(template.table_name)}</span>
                     <span class="category-name-small">${formatCategoryName(template.table_name)}</span>
-                    <span class="category-count-small">${roundsCount} rounds</span>
+                    <span class="category-count-small">${template.number_of_rounds} rounds</span>
                 `;
                 card.onclick = () => {
                     document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
                     hostSelectedTemplate = template.table_name;
                     hostSelectedTemplateName = formatCategoryName(template.table_name);
-                    hostSelectedTemplateRounds = roundsCount;
+                    hostSelectedTemplateRounds = template.number_of_rounds;
                     const selectedDisplay = document.getElementById('selectedTemplateDisplay');
                     const selectedNameSpan = document.getElementById('selectedTemplateName');
                     const selectedRoundsSpan = document.getElementById('selectedTemplateRounds');
                     if (selectedDisplay) selectedDisplay.style.display = 'flex';
                     if (selectedNameSpan) selectedNameSpan.textContent = hostSelectedTemplateName;
-                    if (selectedRoundsSpan) selectedRoundsSpan.textContent = `${roundsCount} rounds`;
+                    if (selectedRoundsSpan) selectedRoundsSpan.textContent = `${template.number_of_rounds} rounds`;
                     updateHostSummary();
                 };
                 grid.appendChild(card);
