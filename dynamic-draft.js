@@ -83,13 +83,12 @@ function initSocket() {
     console.log('Initializing socket connection to:', SOCKET_URL);
     
     socket = io(SOCKET_URL, {
-        transports: ['websocket', 'polling'],
+        transports: ['polling', 'websocket'], // Polling first, then websocket
         withCredentials: true,
         reconnection: true,
-        reconnectionAttempts: 10,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        timeout: 20000,
-        path: '/socket.io/'
+        timeout: 10000
     });
     
     setupSocketListeners();
@@ -119,7 +118,6 @@ function setupSocketListeners() {
             statusEl.innerHTML = '🔴 Disconnected';
             statusEl.style.color = '#ef4444';
         }
-        showToast('Disconnected from server. Attempting to reconnect...', 3000);
     });
     
     socket.on('connect_error', (error) => {
@@ -129,7 +127,6 @@ function setupSocketListeners() {
             statusEl.innerHTML = '🔴 Connection Failed';
             statusEl.style.color = '#ef4444';
         }
-        showToast('Error connecting to server. Please refresh.', 5000);
     });
     
     socket.on('playerJoined', (players) => {
@@ -449,11 +446,11 @@ function startDraftGame(state) {
     
     const gameConfig = JSON.parse(localStorage.getItem('gameConfig'));
     
-    playersData = state.players;
-    numPlayers = state.players.length;
+    playersData = state.players || [];
+    numPlayers = playersData.length;
     numRounds = templateSlots.length;
     totalPicks = numPlayers * numRounds;
-    draftOrder = state.draftOrder;
+    draftOrder = state.draftOrder || [];
     playersItems = playersData.map(() => []);
     availableItems = flattenAvailableItems();
     itemsWithScores = state.itemsWithScores || itemsWithScores;
@@ -545,14 +542,17 @@ function renderDraftScreen() {
         for (let i = 0; i < numPlayers; i++) {
             const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
             const playerName = getPlayerName(i);
-            const playerTotalScore = playersItems[i].reduce((sum, item) => sum + (item.score || 0), 0);
+            
+            // FIX: Add null check for playersItems[i]
+            const playerItems = playersItems[i] || [];
+            const playerTotalScore = playerItems.reduce((sum, item) => sum + (item.score || 0), 0);
             
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
             let slotsHtml = '<div class="player-slots">';
             templateSlots.forEach((slot, idx) => {
-                const isFilled = playersItems[i].some(item => item.slot === slot.slot_name);
+                const isFilled = playerItems.some(item => item.slot === slot.slot_name);
                 const isCurrentSlot = idx === currentSlotIndex && isCurrentTurn && !isDraftComplete;
                 const slotClass = isFilled ? 'slot-filled' : (isCurrentSlot ? 'slot-current' : 'slot-empty');
                 slotsHtml += `<div class="slot-item ${slotClass}">${getSlotIcon(slot.slot_name)} ${slot.slot_name} ${isFilled ? '✓' : '○'}</div>`;
@@ -560,10 +560,10 @@ function renderDraftScreen() {
             slotsHtml += '</div>';
             
             let itemsHtml = '<div class="drafted-list">';
-            if (playersItems[i].length === 0) {
+            if (playerItems.length === 0) {
                 itemsHtml += '<div class="empty-state">✨ No picks yet</div>';
             } else {
-                playersItems[i].forEach((item, idx) => {
+                playerItems.forEach((item, idx) => {
                     itemsHtml += `
                         <div class="drafted-item">
                             <span>${idx + 1}. ${escapeHtml(item.name)}</span>
@@ -661,6 +661,7 @@ function applyPick(data) {
             score: data.score || itemsWithScores[data.item] || 0,
             slot: templateSlots[currentSlotIndex]?.slot_name
         };
+        if (!playersItems[playerIndex]) playersItems[playerIndex] = [];
         playersItems[playerIndex].push(pickData);
         currentSlotIndex++;
     }
