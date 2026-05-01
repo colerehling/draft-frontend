@@ -314,9 +314,13 @@ function updatePlayersList() {
 }
 
 function getCurrentSlotIndex() {
-    // Find which slot (position) we're on based on picks made
-    // Each player has their own progress tracked in playerFilledSlots
-    return playersItems[currentPickIndex]?.length || 0;
+    // Get the current slot based on how many picks this player has made
+    // This is per-player tracking
+    const currentPlayerIndex = getCurrentPlayerIndex();
+    if (currentPlayerIndex !== -1) {
+        return playersItems[currentPlayerIndex]?.length || 0;
+    }
+    return 0;
 }
 
 function getCurrentSlotName() {
@@ -363,6 +367,9 @@ function startDraftGame(state) {
     }
     if (state.itemsWithScores) {
         itemsWithScores = state.itemsWithScores;
+    }
+    if (state.draftPositions) {
+        draftPositions = state.draftPositions;
     }
     
     draftOrder = generateDraftOrder();
@@ -421,6 +428,7 @@ function renderDraftScreen() {
         poolCountSpan.innerText = `${itemsToShow.length} items available`;
     }
     
+    // RENDER AVAILABLE ITEMS - Original style (vertical list with draft button on the right)
     if (availableContainer) {
         if (itemsToShow.length === 0 || isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete or no available items!</div>';
@@ -448,6 +456,7 @@ function renderDraftScreen() {
         }
     }
     
+    // RENDER PLAYERS
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
