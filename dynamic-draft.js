@@ -10,7 +10,7 @@ const SOCKET_URL = isDevelopment
     ? 'http://localhost:3000'
     : 'https://draft-backend-f40v.onrender.com';
 
-console.log('=== DYNAMIC DRAFT PAGE LOADED (Lobby + Draft Combined) ===');
+console.log('=== DYNAMIC DRAFT PAGE LOADED ===');
 
 // Game state
 let socket = null;
@@ -60,7 +60,7 @@ function loadSetup() {
             templateDisplayName: currentTemplateDisplayName,
             numPlayers: config.numPlayers,
             timerMinutes: config.timerMinutes,
-            hostName: config.hostName || 'Host',
+            hostName: myPlayerName,
             draftType: config.draftType
         }));
     } else {
@@ -263,23 +263,20 @@ async function startDraftGame(state) {
         try {
             console.log('Loading items for template:', currentTemplateName);
             
-            // Get all items for this template grouped by category
-            const response = await fetch(`${API_BASE_URL}/dynamic-all-items/${currentTemplateName}`);
+            const response = await fetch(`${API_BASE_URL}/dynamic-items/${currentTemplateName}/with-scores`);
             const data = await response.json();
             
-            if (data.success) {
-                // Build availableItems array
-                availableItems = [];
+            if (data.success && data.items) {
+                availableItems = data.items.map(item => ({
+                    name: item.item_name,
+                    category: item.category,
+                    score: item.score
+                }));
                 itemsWithScores = {};
-                
-                for (const [category, items] of Object.entries(data.items)) {
-                    items.forEach(item => {
-                        availableItems.push(item.item_name);
-                        itemsWithScores[item.item_name] = item.score;
-                    });
-                }
-                
-                console.log(`Loaded ${availableItems.length} items`);
+                data.items.forEach(item => {
+                    itemsWithScores[item.item_name] = item.score;
+                });
+                console.log(`Loaded ${availableItems.length} items with categories`);
             }
         } catch (error) {
             console.error('Error loading items:', error);
@@ -297,15 +294,6 @@ async function startDraftGame(state) {
     numRounds = state.numRounds;
     totalPicks = numPlayers * numRounds;
     playersItems = state.playersItems.map(items => [...items]);
-    
-    // Use available items from backend if provided, otherwise use loaded items
-    if (state.availableItems && state.availableItems.length > 0) {
-        availableItems = [...state.availableItems];
-    }
-    if (state.itemsWithScores) {
-        itemsWithScores = state.itemsWithScores;
-    }
-    
     draftOrder = state.draftOrder;
     currentPickIndex = state.currentPickIndex;
     currentRound = draftOrder[currentPickIndex]?.round || 1;
@@ -346,9 +334,11 @@ function renderDraftScreen() {
                 const canDraft = gameStarted ? isMyTurn : false;
                 const card = document.createElement('div');
                 card.className = 'draft-card';
+                // Show category on the right side of the draft choice
                 card.innerHTML = `
                     <div class="item-info">
-                        <span class="item-name">${escapeHtml(item)}</span>
+                        <span class="item-name">${escapeHtml(item.name)}</span>
+                        <span class="item-category">${getCategoryIcon(item.category)} ${item.category}</span>
                     </div>
                     <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                         ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -379,7 +369,10 @@ function renderDraftScreen() {
                     ${playersItems[i].length === 0 
                         ? '<div class="empty-state">✨ No picks yet</div>'
                         : playersItems[i].map((item, idx) => `
-                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)}</div>
+                            <div class="drafted-item">
+                                <span>${idx + 1}. ${escapeHtml(item.name)}</span>
+                                ${item.category ? `<span class="item-category-tag">${getCategoryIcon(item.category)} ${item.category}</span>` : ''}
+                            </div>
                         `).join('')
                     }
                 </div>
@@ -411,11 +404,16 @@ function makePick(item) {
         showToast("Not your turn!", 2000);
         return;
     }
-    socket.emit('makePick', { roomCode: roomCode, itemName: item });
+    socket.emit('makePick', { 
+        roomCode: roomCode, 
+        itemName: item.name,
+        category: item.category,
+        score: item.score
+    });
 }
 
 function applyPick(data) {
-    const itemIndex = availableItems.indexOf(data.item);
+    const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
     
     let playerIndex = -1;
@@ -427,7 +425,11 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
-        playersItems[playerIndex].push({ name: data.item });
+        playersItems[playerIndex].push({ 
+            name: data.item,
+            category: data.category,
+            score: data.score || 0
+        });
     }
     
     currentPickIndex++;
@@ -453,6 +455,22 @@ function getPlayerName(playerIndex) {
 function getPlayerIcon(index) {
     const icons = ['👑', '🏆', '⭐', '💎', '🌟', '⚡', '🔥', '💫'];
     return icons[index % icons.length];
+}
+
+function getCategoryIcon(category) {
+    const icons = {
+        'Main': '🍔',
+        'Side': '🍟',
+        'Drink': '🥤',
+        'Breakfast': '🍳',
+        'Dessert': '🍰',
+        'Action': '💥',
+        'Comedy': '😂',
+        'Snack': '🍿',
+        'Gear': '🏖️',
+        'Activity': '⚽'
+    };
+    return icons[category] || '📦';
 }
 
 function startTimer(duration) {
@@ -541,11 +559,9 @@ function init() {
     };
     
     document.getElementById('forceEndTurnBtn').onclick = () => {
-        if (isMyTurn) {
-            if (availableItems.length > 0) {
-                const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
-                makePick(randomItem);
-            }
+        if (isMyTurn && availableItems.length > 0) {
+            const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+            makePick(randomItem);
         } else {
             showToast("Not your turn!", 2000);
         }
