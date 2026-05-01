@@ -44,6 +44,7 @@ let currentTemplateDisplayName = '';
 function loadSetup() {
     const setup = localStorage.getItem('draftSetup');
     if (!setup) {
+        console.error('No setup found, redirecting to index');
         window.location.href = 'index.html';
         return false;
     }
@@ -74,17 +75,20 @@ function loadSetup() {
         roomCode = config.roomCode;
     }
     
+    console.log('Setup loaded - isHost:', isHost, 'draftMode: dynamic');
     return true;
 }
 
 function initSocket() {
+    console.log('Initializing socket connection to:', SOCKET_URL);
+    
     socket = io(SOCKET_URL, {
         transports: ['websocket', 'polling'],
         withCredentials: true,
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
-        timeout: 10000,
+        timeout: 20000,
         path: '/socket.io/'
     });
     
@@ -93,46 +97,60 @@ function initSocket() {
 
 function setupSocketListeners() {
     socket.on('connect', () => {
-    console.log('Socket connected successfully! ID:', socket.id);
-    document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
-    document.getElementById('connectionStatus').style.color = '#10b981';
-    localStorage.setItem('mySocketId', socket.id);
+        console.log('Socket connected! ID:', socket.id);
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🟢 Connected';
+            statusEl.style.color = '#10b981';
+        }
+        localStorage.setItem('mySocketId', socket.id);
+        
+        if (isHost) {
+            createGameRoom();
+        } else {
+            joinGameRoom();
+        }
+    });
     
-    if (isHost) {
-        createGameRoom();
-    } else {
-        joinGameRoom();
-    }
-});
-
     socket.on('disconnect', () => {
         console.log('Socket disconnected');
-        document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
-        document.getElementById('connectionStatus').style.color = '#ef4444';
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🔴 Disconnected';
+            statusEl.style.color = '#ef4444';
+        }
+        showToast('Disconnected from server. Attempting to reconnect...', 3000);
     });
-
+    
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        document.getElementById('connectionStatus').innerHTML = '🔴 Connection Failed';
-        document.getElementById('connectionStatus').style.color = '#ef4444';
-        showToast('Connection to server failed. Please refresh.', 5000);
+        const statusEl = document.getElementById('connectionStatus');
+        if (statusEl) {
+            statusEl.innerHTML = '🔴 Connection Failed';
+            statusEl.style.color = '#ef4444';
+        }
+        showToast('Error connecting to server. Please refresh.', 5000);
     });
     
     socket.on('playerJoined', (players) => {
+        console.log('Players updated:', players);
         playersData = players;
         updatePlayersList();
     });
     
     socket.on('playerLeft', (players) => {
+        console.log('Player left:', players);
         playersData = players;
         updatePlayersList();
         showToast('A player left the game', 2000);
         if (isHost) {
-            document.getElementById('startGameBtn').style.display = 'none';
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) startBtn.style.display = 'none';
         }
     });
     
     socket.on('playerReadyUpdate', (players) => {
+        console.log('Player ready update:', players);
         playersData = players;
         updatePlayersList();
         
@@ -141,17 +159,21 @@ function setupSocketListeners() {
             const fullPlayers = players.length === numPlayers;
             
             if (allReady && fullPlayers) {
-                document.getElementById('startGameBtn').style.display = 'block';
+                const startBtn = document.getElementById('startGameBtn');
+                if (startBtn) startBtn.style.display = 'block';
                 showToast('All players ready! Click Start Game!', 3000);
             } else {
-                document.getElementById('startGameBtn').style.display = 'none';
+                const startBtn = document.getElementById('startGameBtn');
+                if (startBtn) startBtn.style.display = 'none';
             }
         }
     });
     
     socket.on('allPlayersReady', () => {
+        console.log('All players ready event');
         if (isHost) {
-            document.getElementById('startGameBtn').style.display = 'block';
+            const startBtn = document.getElementById('startGameBtn');
+            if (startBtn) startBtn.style.display = 'block';
         }
     });
     
@@ -162,12 +184,14 @@ function setupSocketListeners() {
     });
     
     socket.on('turnChange', (data) => {
+        console.log('Turn change:', data);
         isMyTurn = (data.playerName === myPlayerName);
         
         if (isMyTurn) {
             startTimer(data.timeRemaining);
             renderDraftScreen();
-            showToast(`🔥 YOUR TURN! Draft a ${templateSlots[currentSlotIndex]?.slot_name || 'item'}! 🔥`, 4000);
+            const currentSlot = templateSlots[currentSlotIndex];
+            showToast(`🔥 YOUR TURN! Draft a ${currentSlot?.slot_name || 'item'}! 🔥`, 4000);
         } else {
             stopTimer();
             renderDraftScreen();
@@ -176,21 +200,32 @@ function setupSocketListeners() {
     });
     
     socket.on('pickMade', (data) => {
+        console.log('Pick made:', data);
         applyPick(data);
     });
     
     socket.on('draftComplete', (results) => {
+        console.log('Draft complete!', results);
         localStorage.setItem('draftResults', JSON.stringify(results));
-        showToast('Draft complete! Redirecting...');
-        setTimeout(() => window.location.href = 'results.html', 2000);
+        showToast('Draft complete! Redirecting to results...', 2000);
+        setTimeout(() => {
+            window.location.href = 'results.html';
+        }, 2000);
     });
     
     socket.on('pickError', (error) => {
+        console.error('Pick error:', error);
         showToast(error, 2000);
     });
     
     socket.on('startDraftError', (error) => {
+        console.error('Start draft error:', error);
         showToast(error, 3000);
+        const startBtn = document.getElementById('startGameBtn');
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.textContent = '▶ Start Game';
+        }
     });
 }
 
@@ -207,57 +242,88 @@ function createGameRoom() {
         templateDisplayName: gameConfig.templateDisplayName
     };
     
+    console.log('Creating game with config:', config);
+    
     socket.emit('createGame', config, (response) => {
         if (response.success) {
             roomCode = response.roomCode;
-            document.getElementById('roomCodeDisplay').textContent = roomCode;
-            document.getElementById('maxPlayers').textContent = numPlayers;
-            document.getElementById('lobbyTitle').innerHTML = '👑 You are the Host';
-            document.getElementById('lobbySubtitle').innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
+            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+            const maxPlayersSpan = document.getElementById('maxPlayers');
+            const lobbyTitle = document.getElementById('lobbyTitle');
+            const lobbySubtitle = document.getElementById('lobbySubtitle');
+            
+            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
+            if (maxPlayersSpan) maxPlayersSpan.textContent = numPlayers;
+            if (lobbyTitle) lobbyTitle.innerHTML = '👑 You are the Host';
+            if (lobbySubtitle) lobbySubtitle.innerHTML = `Share code: ${roomCode} with up to ${numPlayers - 1} friends`;
+            
             setupLobbyButtons();
+        } else {
+            console.error('Failed to create game:', response);
+            showToast('Failed to create game. Please try again.', 3000);
         }
     });
 }
 
 function joinGameRoom() {
+    console.log('Joining game room:', roomCode);
+    
     socket.emit('joinGame', { roomCode: roomCode, playerName: myPlayerName }, (response) => {
         if (response.success) {
-            document.getElementById('roomCodeDisplay').textContent = roomCode;
-            document.getElementById('maxPlayers').textContent = '?';
-            document.getElementById('lobbyTitle').innerHTML = '🎮 Waiting for Host';
-            document.getElementById('lobbySubtitle').innerHTML = `Room: ${roomCode}`;
+            const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+            const lobbyTitle = document.getElementById('lobbyTitle');
+            const lobbySubtitle = document.getElementById('lobbySubtitle');
+            
+            if (roomCodeDisplay) roomCodeDisplay.textContent = roomCode;
+            if (lobbyTitle) lobbyTitle.innerHTML = '🎮 Waiting for Host';
+            if (lobbySubtitle) lobbySubtitle.innerHTML = `Room: ${roomCode}`;
             
             const readyDiv = document.getElementById('readyStatus');
-            readyDiv.style.display = 'block';
+            if (readyDiv) readyDiv.style.display = 'block';
+            
             const readyBtn = document.getElementById('readyBtn');
-            readyBtn.onclick = () => {
-                socket.emit('playerReady', roomCode);
-                readyBtn.disabled = true;
-                readyBtn.textContent = '✓ Ready!';
-                showToast('You are ready! Waiting for host...', 2000);
-            };
+            if (readyBtn) {
+                readyBtn.onclick = () => {
+                    socket.emit('playerReady', roomCode);
+                    readyBtn.disabled = true;
+                    readyBtn.textContent = '✓ Ready!';
+                    showToast('You are ready! Waiting for host...', 2000);
+                };
+            }
         } else {
             showToast(response.error, 3000);
-            setTimeout(() => window.location.href = 'index.html', 2000);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 2000);
         }
     });
 }
 
 function setupLobbyButtons() {
-    document.getElementById('copyRoomCodeBtn').onclick = () => {
-        navigator.clipboard.writeText(roomCode);
-        showToast('Room code copied!', 1500);
-    };
+    const copyBtn = document.getElementById('copyRoomCodeBtn');
+    if (copyBtn) {
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(roomCode);
+            showToast('Room code copied!', 1500);
+        };
+    }
     
-    document.getElementById('cancelGameBtn').onclick = () => {
-        window.location.href = 'index.html';
-    };
+    const cancelBtn = document.getElementById('cancelGameBtn');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            window.location.href = 'index.html';
+        };
+    }
     
-    document.getElementById('startGameBtn').onclick = () => {
-        socket.emit('startDraft', roomCode);
-        document.getElementById('startGameBtn').disabled = true;
-        document.getElementById('startGameBtn').textContent = 'Starting...';
-    };
+    const startBtn = document.getElementById('startGameBtn');
+    if (startBtn) {
+        startBtn.onclick = () => {
+            console.log('Starting draft for room:', roomCode);
+            socket.emit('startDraft', roomCode);
+            startBtn.disabled = true;
+            startBtn.textContent = 'Starting...';
+        };
+    }
 }
 
 function updatePlayersList() {
@@ -287,6 +353,8 @@ async function loadDynamicItems() {
     const templateName = gameConfig.templateName;
     currentTemplateName = templateName;
     
+    console.log('Loading dynamic items for template:', templateName);
+    
     try {
         const slotsResponse = await fetch(`${API_BASE_URL}/dynamic-template/${templateName}/slots`);
         const slotsData = await slotsResponse.json();
@@ -294,6 +362,7 @@ async function loadDynamicItems() {
         if (slotsData.success) {
             templateSlots = slotsData.slots;
             numRounds = templateSlots.length;
+            console.log('Template slots loaded:', templateSlots);
             
             for (const slot of templateSlots) {
                 const itemsResponse = await fetch(`${API_BASE_URL}/dynamic-items/${templateName}/${slot.slot_name}`);
@@ -304,6 +373,7 @@ async function loadDynamicItems() {
                     itemsData.items.forEach(item => {
                         itemsWithScores[item.item_name] = item.score;
                     });
+                    console.log(`Loaded ${itemsData.items.length} items for slot: ${slot.slot_name}`);
                 }
             }
         }
@@ -368,9 +438,9 @@ function getFilteredItems() {
 }
 
 function startDraftGame(state) {
+    console.log('Starting draft game');
     gameStarted = true;
     
-    // Hide lobby, show draft
     const lobbyScreen = document.getElementById('lobbyScreen');
     const draftScreen = document.getElementById('draftScreen');
     
@@ -398,7 +468,6 @@ function startDraftGame(state) {
         timeRemaining = TIMER_DURATION;
     }
     
-    // Set titles
     const mainTitle = document.getElementById('mainTitle');
     const subTitle = document.getElementById('subTitle');
     const categoryTitle = document.getElementById('categoryTitle');
@@ -410,6 +479,7 @@ function startDraftGame(state) {
     if (currentSlotName && templateSlots[0]) currentSlotName.innerHTML = templateSlots[0].slot_name;
     
     renderDraftScreen();
+    console.log('Draft screen rendered');
 }
 
 function renderDraftScreen() {
@@ -423,7 +493,6 @@ function renderDraftScreen() {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
-    // Update current slot display
     if (currentSlotNameSpan && templateSlots[currentSlotIndex]) {
         currentSlotNameSpan.innerHTML = templateSlots[currentSlotIndex].slot_name;
     }
@@ -442,7 +511,6 @@ function renderDraftScreen() {
         poolCountSpan.innerText = `${itemsToShow.length} items (${totalPicks - currentPickIndex} picks left)`;
     }
     
-    // Render available items
     if (availableContainer) {
         const itemsToShow = getFilteredItems();
         
@@ -464,13 +532,14 @@ function renderDraftScreen() {
                     </button>
                 `;
                 const btn = card.querySelector('.draft-btn');
-                if (canDraft) btn.onclick = () => makePick(item);
+                if (canDraft) {
+                    btn.onclick = () => makePick(item);
+                }
                 availableContainer.appendChild(card);
             });
         }
     }
     
-    // Render players
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -518,7 +587,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -527,7 +595,8 @@ function renderDraftScreen() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (gameStarted && isMyTurn) {
-                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Draft a ${templateSlots[currentSlotIndex]?.slot_name || 'item'}! 🎯`;
+                const currentSlot = templateSlots[currentSlotIndex];
+                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Draft a ${currentSlot?.slot_name || 'item'}! 🎯`;
                 turnMessageSpan.style.color = '#facc15';
             } else {
                 turnMessageSpan.innerHTML = `${currentPlayerName}'s turn...`;
@@ -536,7 +605,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Filter bar
     const filterBar = document.getElementById('filterBar');
     if (filterBar) {
         filterBar.style.display = (gameStarted && !isDraftComplete && isMyTurn) ? 'flex' : 'none';
@@ -560,7 +628,6 @@ function makePick(item) {
         return;
     }
     
-    // Validate the item belongs to the current slot
     if (currentSlotIndex < templateSlots.length) {
         const currentSlot = templateSlots[currentSlotIndex];
         const validItems = slotItemsCache[currentSlot.slot_name] || [];
@@ -572,6 +639,7 @@ function makePick(item) {
         }
     }
     
+    console.log('Making pick:', item);
     socket.emit('makePick', { roomCode: roomCode, itemName: item });
 }
 
@@ -598,7 +666,9 @@ function applyPick(data) {
     }
     
     currentPickIndex++;
-    if (currentPickIndex < draftOrder.length) currentRound = draftOrder[currentPickIndex].round;
+    if (currentPickIndex < draftOrder.length) {
+        currentRound = draftOrder[currentPickIndex].round;
+    }
     availableItems = flattenAvailableItems();
     
     renderDraftScreen();
@@ -653,13 +723,19 @@ function updateTimerDisplay() {
     }
     
     if (timerBarFillEl && TIMER_DURATION > 0) {
-        timerBarFillEl.style.width = Math.max(0, (timeRemaining / TIMER_DURATION) * 100) + '%';
+        const percentage = (timeRemaining / TIMER_DURATION) * 100;
+        timerBarFillEl.style.width = Math.max(0, percentage) + '%';
     }
 }
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m] || m));
+    return str.replace(/[&<>]/g, m => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
 }
 
 function showToast(message, duration = 2200) {
@@ -667,32 +743,54 @@ function showToast(message, duration = 2200) {
     if (toastEl) {
         toastEl.innerText = message;
         toastEl.style.opacity = '1';
-        setTimeout(() => toastEl.style.opacity = '0', duration);
+        setTimeout(() => {
+            toastEl.style.opacity = '0';
+        }, duration);
     }
+    console.log('Toast:', message);
 }
 
-// Initialize
 function init() {
+    console.log('Initializing dynamic draft page');
     if (!loadSetup()) return;
     
-    document.getElementById('lobbyScreen').style.display = 'block';
-    document.getElementById('draftScreen').style.display = 'none';
+    const lobbyScreen = document.getElementById('lobbyScreen');
+    const draftScreen = document.getElementById('draftScreen');
+    if (lobbyScreen) lobbyScreen.style.display = 'block';
+    if (draftScreen) draftScreen.style.display = 'none';
     
     initSocket();
     
-    document.getElementById('backToLobbyBtn').onclick = () => window.location.href = 'index.html';
-    document.getElementById('resetGameBtn').onclick = () => {
-        if (confirm('Reset the current draft?')) window.location.reload();
-    };
-    document.getElementById('forceEndTurnBtn').onclick = () => {
-        if (isMyTurn && availableItems.length > 0) {
-            const itemsToPick = getFilteredItems();
-            if (itemsToPick.length > 0) {
-                const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
-                makePick(randomItem);
+    const backBtn = document.getElementById('backToLobbyBtn');
+    if (backBtn) {
+        backBtn.onclick = () => {
+            window.location.href = 'index.html';
+        };
+    }
+    
+    const resetBtn = document.getElementById('resetGameBtn');
+    if (resetBtn) {
+        resetBtn.onclick = () => {
+            if (confirm('Reset the current draft? All progress will be lost.')) {
+                window.location.reload();
             }
-        }
-    };
+        };
+    }
+    
+    const autoBtn = document.getElementById('forceEndTurnBtn');
+    if (autoBtn) {
+        autoBtn.onclick = () => {
+            if (isMyTurn && availableItems.length > 0) {
+                const itemsToPick = getFilteredItems();
+                if (itemsToPick.length > 0) {
+                    const randomItem = itemsToPick[Math.floor(Math.random() * itemsToPick.length)];
+                    makePick(randomItem);
+                }
+            } else if (!isMyTurn) {
+                showToast("Not your turn!", 2000);
+            }
+        };
+    }
     
     showToast('Waiting for game to start...', 3000);
 }
