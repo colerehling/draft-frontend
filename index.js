@@ -62,8 +62,11 @@ function getCategoryIcon(tableName) {
         'animated_dogs': '🐕‍🦺',
         'fruits': '🍏',
         'fast_food_meal': '🍔',
+        'fast_food_meal_items': '🍔',
         'movie_night': '🎬',
-        'beach_day': '🏖️'
+        'movie_night_items': '🎬',
+        'beach_day': '🏖️',
+        'beach_day_items': '🏖️'
     };
     return iconMap[tableName] || '👽';
 }
@@ -93,6 +96,7 @@ function updateHostSummary() {
         if (summaryCategory) summaryCategory.textContent = hostSelectedTemplateName || 'Not selected';
         const dynamicDraftType = document.querySelector('input[name="dynamicDraftType"]:checked')?.value || 'snake';
         if (summaryDraftType) summaryDraftType.textContent = dynamicDraftType === 'snake' ? '🐍 Snake' : '📋 Regular';
+        // Use number_of_rounds for dynamic drafts
         if (summaryTotalPicks) summaryTotalPicks.textContent = hostNumPlayers * hostSelectedTemplateRounds;
     }
     
@@ -137,35 +141,36 @@ async function loadCategoriesForHost() {
     }
 }
 
-async function loadDynamicCategoriesForHost() {
+async function loadDynamicTemplates() {
     try {
-        // Same endpoint, just different API call
-        const response = await fetch(`${API_BASE_URL}/dynamic-templates`);
+        const response = await fetch(`${API_BASE_URL}/dynamic-categories`);
         const data = await response.json();
-        if (data.success && data.templates) {
+        if (data.success && data.categories) {
             const grid = document.getElementById('dynamicTemplateGrid');
             if (!grid) return;
             grid.innerHTML = '';
-            data.templates.forEach(template => {
+            data.categories.forEach(template => {
                 const card = document.createElement('div');
                 card.className = 'category-card-small';
+                // Use number_of_rounds instead of number_of_items
+                const roundsCount = template.number_of_rounds || template.item_count || 0;
                 card.innerHTML = `
-                    <span class="category-icon-small">${getCategoryIcon(template.template_name)}</span>
-                    <span class="category-name-small">${template.display_name}</span>
-                    <span class="category-count-small">${template.total_rounds} rounds</span>
+                    <span class="category-icon-small">${getCategoryIcon(template.table_name)}</span>
+                    <span class="category-name-small">${formatCategoryName(template.table_name)}</span>
+                    <span class="category-count-small">${roundsCount} rounds</span>
                 `;
                 card.onclick = () => {
                     document.querySelectorAll('#dynamicTemplateGrid .category-card-small').forEach(c => c.classList.remove('selected'));
                     card.classList.add('selected');
-                    hostSelectedTemplate = template.template_name;
-                    hostSelectedTemplateName = template.display_name;
-                    hostSelectedTemplateRounds = template.total_rounds;
+                    hostSelectedTemplate = template.table_name;
+                    hostSelectedTemplateName = formatCategoryName(template.table_name);
+                    hostSelectedTemplateRounds = roundsCount;
                     const selectedDisplay = document.getElementById('selectedTemplateDisplay');
                     const selectedNameSpan = document.getElementById('selectedTemplateName');
                     const selectedRoundsSpan = document.getElementById('selectedTemplateRounds');
                     if (selectedDisplay) selectedDisplay.style.display = 'flex';
                     if (selectedNameSpan) selectedNameSpan.textContent = hostSelectedTemplateName;
-                    if (selectedRoundsSpan) selectedRoundsSpan.textContent = `${template.total_rounds} rounds`;
+                    if (selectedRoundsSpan) selectedRoundsSpan.textContent = `${roundsCount} rounds`;
                     updateHostSummary();
                 };
                 grid.appendChild(card);
@@ -223,7 +228,7 @@ function setupDraftModeCards() {
             if (draftMode === 'simple') {
                 loadCategoriesForHost();
             } else {
-                loadDynamicCategoriesForHost();
+                loadDynamicTemplates();
             }
             toggleDraftModeUI();
             updateHostSummary();
@@ -244,7 +249,7 @@ if (hostOption) {
         
         // Load both types of categories
         loadCategoriesForHost();
-        loadDynamicCategoriesForHost();
+        loadDynamicTemplates();
         
         const hostNameInput = document.getElementById('hostNameInput');
         if (hostNameInput) hostNameInput.value = 'Player 1';
