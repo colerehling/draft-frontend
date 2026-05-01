@@ -79,12 +79,13 @@ function loadSetup() {
 
 function initSocket() {
     socket = io(SOCKET_URL, {
-        transports: ['polling', 'websocket'],
+        transports: ['websocket', 'polling'],
         withCredentials: true,
         reconnection: true,
-        reconnectionAttempts: 10,
+        reconnectionAttempts: 5,
         reconnectionDelay: 1000,
-        timeout: 20000
+        timeout: 10000,
+        path: '/socket.io/'
     });
     
     setupSocketListeners();
@@ -92,21 +93,29 @@ function initSocket() {
 
 function setupSocketListeners() {
     socket.on('connect', () => {
-        console.log('Socket connected:', socket.id);
-        document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
-        localStorage.setItem('mySocketId', socket.id);
-        
-        if (isHost) {
-            createGameRoom();
-        } else {
-            joinGameRoom();
-        }
-    });
+    console.log('Socket connected successfully! ID:', socket.id);
+    document.getElementById('connectionStatus').innerHTML = '🟢 Connected';
+    document.getElementById('connectionStatus').style.color = '#10b981';
+    localStorage.setItem('mySocketId', socket.id);
     
+    if (isHost) {
+        createGameRoom();
+    } else {
+        joinGameRoom();
+    }
+});
+
+    socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+        document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
+        document.getElementById('connectionStatus').style.color = '#ef4444';
+    });
+
     socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
-        document.getElementById('connectionStatus').innerHTML = '🔴 Disconnected';
-        showToast('Connection error!', 3000);
+        document.getElementById('connectionStatus').innerHTML = '🔴 Connection Failed';
+        document.getElementById('connectionStatus').style.color = '#ef4444';
+        showToast('Connection to server failed. Please refresh.', 5000);
     });
     
     socket.on('playerJoined', (players) => {
