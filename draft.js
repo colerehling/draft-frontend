@@ -475,7 +475,9 @@ function showToast(message, duration = 2200) {
     if (toastEl) {
         toastEl.innerText = message;
         toastEl.style.opacity = '1';
-        setTimeout(() => toastEl.style.opacity = '0', duration);
+        setTimeout(() => {
+            toastEl.style.opacity = '0';
+        }, duration);
     }
 }
 
