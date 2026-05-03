@@ -38,7 +38,6 @@ let playerFilledSlots = [];
 let currentTemplateName = '';
 let currentTemplateDisplayName = '';
 let dataLoaded = false;
-let isProcessingPick = false;
 
 // Load setup from localStorage
 function loadSetup() {
@@ -70,6 +69,7 @@ function loadSetup() {
             draftType: draftOrderType
         }));
         
+        // Host loads data immediately
         loadDraftPositions();
         loadItems();
     } else {
@@ -176,42 +176,43 @@ function setupSocketListeners() {
         }
     });
     
+    // CRITICAL: Receive game data from host
     socket.on('gameData', (data) => {
-        console.log('Received game data from host:', data);
+        console.log('📦 Received game data from host:', data);
         
         if (data.draftPositions && data.draftPositions.length > 0) {
             draftPositions = data.draftPositions;
             numRounds = draftPositions.length;
+            console.log('Draft positions updated:', draftPositions);
         }
         
         if (data.availableItems && data.availableItems.length > 0) {
-            if (data.availableItems[0].hasOwnProperty('item_name')) {
-                availableItems = data.availableItems.map(item => ({
-                    name: item.item_name,
-                    category: item.category,
-                    score: item.score
-                }));
-            } else {
-                availableItems = data.availableItems;
-            }
+            availableItems = data.availableItems;
+            console.log(`Available items updated: ${availableItems.length} items`);
         }
         
-        itemsWithScores = data.itemsWithScores || {};
+        if (data.itemsWithScores) {
+            itemsWithScores = data.itemsWithScores;
+        }
+        
         dataLoaded = true;
         
+        // Initialize player tracking
         playerFilledSlots = [];
         for (let i = 0; i < numPlayers; i++) {
             playerFilledSlots[i] = [];
         }
         
+        // If game already started, re-render
         if (gameStarted) {
             renderDraftScreen();
         }
     });
     
     socket.on('draftStarted', (state) => {
-        console.log('Draft started!', state);
+        console.log('🎯 Draft started!', state);
         
+        // If guest hasn't received game data yet, use state data
         if (!dataLoaded) {
             if (state.positions && state.positions.length > 0) {
                 draftPositions = state.positions;
@@ -219,18 +220,12 @@ function setupSocketListeners() {
             }
             
             if (state.availableItems && state.availableItems.length > 0) {
-                if (state.availableItems[0].hasOwnProperty('item_name')) {
-                    availableItems = state.availableItems.map(item => ({
-                        name: item.item_name,
-                        category: item.category,
-                        score: item.score
-                    }));
-                } else {
-                    availableItems = state.availableItems;
-                }
+                availableItems = state.availableItems;
             }
             
-            itemsWithScores = state.itemsWithScores || {};
+            if (state.itemsWithScores) {
+                itemsWithScores = state.itemsWithScores;
+            }
             dataLoaded = true;
         }
         
@@ -238,16 +233,14 @@ function setupSocketListeners() {
     });
     
     socket.on('turnChange', (data) => {
-        console.log('Turn change:', data);
+        console.log('🔄 Turn change:', data);
         isMyTurn = (data.playerName === myPlayerName);
-        isProcessingPick = false;
         
         if (isMyTurn) {
             startTimer(data.timeRemaining);
             renderDraftScreen();
             const currentSlot = getCurrentSlotName();
             showToast(`🔥 YOUR TURN! Pick a ${currentSlot}! 🔥`, 4000);
-            setTimeout(() => enableDraftButtons(), 100);
         } else {
             stopTimer();
             renderDraftScreen();
@@ -256,6 +249,7 @@ function setupSocketListeners() {
     });
     
     socket.on('pickMade', (data) => {
+        console.log('📦 Pick made:', data);
         applyPick(data);
     });
     
@@ -267,8 +261,6 @@ function setupSocketListeners() {
     
     socket.on('pickError', (error) => {
         showToast(error, 2000);
-        isProcessingPick = false;
-        enableDraftButtons();
     });
     
     socket.on('startDraftError', (error) => {
@@ -302,7 +294,7 @@ function createGameRoom() {
 }
 
 function joinGameRoom() {
-    socket.emit('requestGameData', roomCode);
+    console.log('Joining game room:', roomCode);
     
     socket.emit('joinGame', { roomCode: roomCode, playerName: myPlayerName }, (response) => {
         if (response.success) {
@@ -340,6 +332,7 @@ function setupLobbyButtons() {
     document.getElementById('startGameBtn').onclick = () => {
         console.log('Starting draft for room:', roomCode);
         
+        // Prepare game data to send to all players
         const gameData = {
             draftPositions: draftPositions,
             availableItems: availableItems,
@@ -347,8 +340,12 @@ function setupLobbyButtons() {
             numRounds: numRounds
         };
         
+        console.log('Broadcasting game data:', gameData);
+        
+        // Broadcast to all other players
         socket.emit('broadcastGameData', { roomCode, gameData });
         
+        // Start the draft after a short delay to ensure data is sent
         setTimeout(() => {
             socket.emit('startDraft', roomCode);
             document.getElementById('startGameBtn').disabled = true;
@@ -406,17 +403,6 @@ function getAvailableItemsForPlayer(playerIndex) {
     );
 }
 
-function enableDraftButtons() {
-    if (isMyTurn && gameStarted) {
-        const btns = document.querySelectorAll('.draft-btn');
-        btns.forEach(btn => {
-            if (btn.classList.contains('active-turn')) {
-                btn.disabled = false;
-            }
-        });
-    }
-}
-
 function startDraftGame(state) {
     gameStarted = true;
     
@@ -432,28 +418,14 @@ function startDraftGame(state) {
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
     
-    if (!dataLoaded) {
-        if (state.availableItems && state.availableItems.length > 0) {
-            if (state.availableItems[0].hasOwnProperty('item_name')) {
-                availableItems = state.availableItems.map(item => ({
-                    name: item.item_name,
-                    category: item.category,
-                    score: item.score
-                }));
-            } else {
-                availableItems = state.availableItems;
-            }
-        }
-        
-        if (state.itemsWithScores) {
-            itemsWithScores = state.itemsWithScores;
-        }
-        
-        if (state.positions && state.positions.length > 0) {
+    // Ensure guest has data (use state as fallback)
+    if (!dataLoaded && state.availableItems) {
+        availableItems = state.availableItems;
+        itemsWithScores = state.itemsWithScores || {};
+        if (state.positions) {
             draftPositions = state.positions;
             numRounds = draftPositions.length;
         }
-        
         dataLoaded = true;
     }
     
@@ -611,11 +583,6 @@ function makePick(item) {
         return;
     }
     
-    if (isProcessingPick) {
-        console.log('Already processing a pick, ignoring...');
-        return;
-    }
-    
     const currentPlayerIndex = getCurrentPlayerIndex();
     const currentSlot = getCurrentSlotName();
     
@@ -629,31 +596,15 @@ function makePick(item) {
         return;
     }
     
-    isProcessingPick = true;
-    
-    const allBtns = document.querySelectorAll('.draft-btn');
-    allBtns.forEach(btn => {
-        btn.disabled = true;
-    });
-    
     socket.emit('makePick', { 
         roomCode: roomCode, 
         itemName: item.name,
         category: item.category,
         score: item.score
     });
-    
-    setTimeout(() => {
-        if (isProcessingPick) {
-            isProcessingPick = false;
-            enableDraftButtons();
-        }
-    }, 3000);
 }
 
 function applyPick(data) {
-    console.log('Applying pick:', data);
-    
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
     
@@ -685,12 +636,7 @@ function applyPick(data) {
         currentRound = draftOrder[currentPickIndex].round;
     }
     
-    isProcessingPick = false;
     renderDraftScreen();
-    
-    if (isMyTurn && currentPickIndex < draftOrder.length) {
-        setTimeout(() => enableDraftButtons(), 100);
-    }
 }
 
 function getCurrentPlayerIndex() {
