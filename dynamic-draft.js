@@ -38,6 +38,7 @@ let playerFilledSlots = [];
 let currentTemplateName = '';
 let currentTemplateDisplayName = '';
 let dataLoaded = false;
+let pendingDraftState = null; // Store draft state until data is loaded
 
 // Load setup from localStorage
 function loadSetup() {
@@ -112,7 +113,6 @@ async function loadItems() {
             });
             dataLoaded = true;
             console.log(`✅ Host loaded ${availableItems.length} items`);
-            console.log('✅ Sample items with categories:', availableItems.slice(0, 3));
         }
     } catch (error) {
         console.error('Error loading items:', error);
@@ -177,33 +177,24 @@ function setupSocketListeners() {
         }
     });
     
-    // CRITICAL: Receive game data from host
+    // GUEST: Receive game data from host
     socket.on('gameData', (data) => {
-        console.log('📦 GUEST received game data from host:', data);
+        console.log('📦 GUEST received game data:', data);
         
-        // Sync all data structures with host
+        // Load all data from host
         if (data.draftPositions && data.draftPositions.length > 0) {
             draftPositions = data.draftPositions;
             numRounds = draftPositions.length;
-            console.log('✅ GUEST draft positions synced:', draftPositions);
-        } else {
-            console.error('❌ GUEST No draft positions received!');
+            console.log('✅ GUEST draft positions loaded:', draftPositions);
         }
         
         if (data.availableItems && data.availableItems.length > 0) {
             availableItems = data.availableItems;
-            console.log(`✅ GUEST available items synced: ${availableItems.length} items`);
-            console.log('✅ GUEST sample items:', availableItems.slice(0, 3));
-        } else {
-            console.error('❌ GUEST No available items received!');
+            console.log(`✅ GUEST available items loaded: ${availableItems.length}`);
         }
         
         if (data.itemsWithScores) {
             itemsWithScores = data.itemsWithScores;
-        }
-        
-        if (data.numRounds) {
-            numRounds = data.numRounds;
         }
         
         if (data.draftOrderType) {
@@ -216,65 +207,23 @@ function setupSocketListeners() {
         
         dataLoaded = true;
         
-        // Initialize player tracking
-        playerFilledSlots = [];
-        for (let i = 0; i < numPlayers; i++) {
-            playerFilledSlots[i] = [];
-        }
-        
-        // Force a re-render to show correct UI
-        if (gameStarted) {
-            console.log('🔄 GUEST re-rendering with synced data');
-            renderDraftScreen();
+        // If there's a pending draft start, process it now
+        if (pendingDraftState) {
+            console.log('🎯 Processing pending draft start');
+            startDraftGame(pendingDraftState);
+            pendingDraftState = null;
         }
     });
     
+    // Both host and guest receive draftStarted
     socket.on('draftStarted', (state) => {
-        console.log('🎯 Draft started event received!', state);
+        console.log('🎯 draftStarted received:', state);
         
-        // CRITICAL: For guests, use the state data
-        if (!isHost) {
-            console.log('🎯 GUEST processing draft started');
-            
-            // Extract positions from state
-            if (state.positions && state.positions.length > 0) {
-                draftPositions = state.positions;
-                numRounds = draftPositions.length;
-                console.log('✅ GUEST positions from state:', draftPositions);
-            } else if (state.draftState && state.draftState.positions) {
-                draftPositions = state.draftState.positions;
-                numRounds = draftPositions.length;
-                console.log('✅ GUEST positions from draftState:', draftPositions);
-            } else if (state.draftState && state.draftState.draftPositions) {
-                draftPositions = state.draftState.draftPositions;
-                numRounds = draftPositions.length;
-                console.log('✅ GUEST positions from draftState.draftPositions:', draftPositions);
-            }
-            
-            // Extract items
-            if (state.availableItems && state.availableItems.length > 0) {
-                availableItems = state.availableItems;
-            } else if (state.draftState && state.draftState.availableItems) {
-                availableItems = state.draftState.availableItems;
-            } else if (state.itemsWithScores) {
-                if (Array.isArray(state.itemsWithScores)) {
-                    availableItems = state.itemsWithScores.map(item => ({
-                        name: item.item_name,
-                        category: item.category,
-                        score: item.score
-                    }));
-                }
-            }
-            
-            if (state.draftOrderType) {
-                draftOrderType = state.draftOrderType;
-            }
-            
-            if (state.categoryName) {
-                currentTemplateDisplayName = state.categoryName;
-            }
-            
-            dataLoaded = true;
+        // For guests: wait for data from gameData first
+        if (!isHost && !dataLoaded) {
+            console.log('⏳ Guest waiting for gameData before starting draft');
+            pendingDraftState = state;
+            return;
         }
         
         startDraftGame(state);
@@ -378,31 +327,26 @@ function setupLobbyButtons() {
     };
     
     document.getElementById('startGameBtn').onclick = () => {
-        console.log('🚀 HOST starting draft for room:', roomCode);
-        console.log('🚀 HOST draftPositions before sending:', draftPositions);
-        console.log('🚀 HOST availableItems count:', availableItems.length);
+        console.log('🚀 Starting draft for room:', roomCode);
         
-        // Prepare complete game data to send to all players
+        // Prepare complete game data for guests
         const gameData = {
             draftPositions: draftPositions,
             availableItems: availableItems,
             itemsWithScores: itemsWithScores,
-            numRounds: numRounds,
             draftOrderType: draftOrderType,
             currentTemplateDisplayName: currentTemplateDisplayName
         };
         
-        console.log('📡 HOST broadcasting game data to guests:', gameData);
-        
-        // Broadcast to all other players
+        console.log('📡 Broadcasting to guests:', gameData);
         socket.emit('broadcastGameData', { roomCode, gameData });
         
-        // Start the draft after a short delay to ensure data is sent
+        // Give guests time to receive data before starting
         setTimeout(() => {
             socket.emit('startDraft', roomCode);
             document.getElementById('startGameBtn').disabled = true;
             document.getElementById('startGameBtn').textContent = 'Starting...';
-        }, 500);
+        }, 1000);
     };
 }
 
@@ -440,14 +384,13 @@ function getCurrentSlotIndex() {
 
 function getCurrentSlotName() {
     if (!draftPositions || draftPositions.length === 0) {
-        console.warn('⚠️ draftPositions is empty!', draftPositions);
         return 'Loading...';
     }
     const slotIndex = getCurrentSlotIndex();
     if (slotIndex < draftPositions.length) {
         return draftPositions[slotIndex].position;
     }
-    return draftPositions[draftPositions.length - 1]?.position || 'Complete';
+    return 'Complete';
 }
 
 function isCategoryAvailableForPlayer(playerIndex, category) {
@@ -457,30 +400,22 @@ function isCategoryAvailableForPlayer(playerIndex, category) {
 
 function getAvailableItemsForPlayer(playerIndex) {
     const currentSlot = getCurrentSlotName();
-    console.log(`🔍 Getting items for slot: ${currentSlot}, total items: ${availableItems.length}`);
     
-    if (currentSlot === 'Complete' || currentSlot === 'Loading...') {
+    if (currentSlot === 'Complete' || currentSlot === 'Loading...' || !draftPositions.length) {
         return [];
     }
     
     const filtered = availableItems.filter(item => {
-        const matchesCategory = item.category === currentSlot;
-        const available = isCategoryAvailableForPlayer(playerIndex, item.category);
-        return matchesCategory && available;
+        return item.category === currentSlot && isCategoryAvailableForPlayer(playerIndex, item.category);
     });
-    
-    console.log(`📊 Slot: ${currentSlot}, Found ${filtered.length} matching items out of ${availableItems.length}`);
-    if (filtered.length === 0 && availableItems.length > 0) {
-        console.log('⚠️ No matches! Available item categories:', [...new Set(availableItems.map(i => i.category))]);
-    }
     
     return filtered;
 }
 
 function startDraftGame(state) {
-    console.log('🎮 Starting draft game with state:', state);
-    console.log('🎮 Current draftPositions:', draftPositions);
-    console.log('🎮 Current availableItems count:', availableItems.length);
+    console.log('🎮 Starting draft game');
+    console.log('draftPositions:', draftPositions);
+    console.log('availableItems count:', availableItems.length);
     
     gameStarted = true;
     
@@ -494,41 +429,6 @@ function startDraftGame(state) {
     totalPicks = numPlayers * numRounds;
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
-    
-    // Ensure we have draft positions - try multiple sources
-    if (draftPositions.length === 0) {
-        if (state.positions && state.positions.length > 0) {
-            draftPositions = state.positions;
-            numRounds = draftPositions.length;
-            console.log('✅ Using positions from state:', draftPositions);
-        } else if (state.draftState && state.draftState.positions) {
-            draftPositions = state.draftState.positions;
-            numRounds = draftPositions.length;
-            console.log('✅ Using positions from draftState:', draftPositions);
-        }
-    }
-    
-    // Ensure we have available items
-    if (availableItems.length === 0) {
-        if (state.availableItems && state.availableItems.length > 0) {
-            availableItems = state.availableItems;
-            console.log(`✅ Using ${availableItems.length} items from state`);
-        } else if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
-            availableItems = state.itemsWithScores.map(item => ({
-                name: item.item_name,
-                category: item.category,
-                score: item.score
-            }));
-            console.log(`✅ Created ${availableItems.length} items from itemsWithScores`);
-        }
-    }
-    
-    if (draftPositions.length === 0) {
-        console.error('❌ CRITICAL: No draft positions available!');
-        showToast('Error: No draft slots loaded!', 3000);
-    }
-    
-    dataLoaded = true;
     
     draftOrder = generateDraftOrder();
     currentPickIndex = 0;
@@ -561,8 +461,6 @@ function generateDraftOrder() {
 }
 
 function renderDraftScreen() {
-    console.log('🎨 Rendering draft screen, draftPositions:', draftPositions);
-    
     const playersContainer = document.getElementById('playersContainer');
     const availableContainer = document.getElementById('availableList');
     const poolCountSpan = document.getElementById('poolCount');
@@ -577,8 +475,7 @@ function renderDraftScreen() {
         if (isDraftComplete) {
             currentSlotIndicatorSpan.textContent = 'Draft Complete!';
         } else if (draftPositions && draftPositions.length > 0) {
-            const currentSlot = getCurrentSlotName();
-            currentSlotIndicatorSpan.textContent = currentSlot;
+            currentSlotIndicatorSpan.textContent = getCurrentSlotName();
         } else {
             currentSlotIndicatorSpan.textContent = 'Loading slots...';
         }
@@ -587,21 +484,18 @@ function renderDraftScreen() {
     // Update pool count
     if (poolCountSpan) {
         if (isDraftComplete) {
-            poolCountSpan.innerText = `Draft Complete!`;
-        } else if (currentPlayerIndex !== -1 && dataLoaded && draftPositions.length > 0) {
+            poolCountSpan.innerText = 'Draft Complete!';
+        } else if (currentPlayerIndex !== -1 && draftPositions.length > 0) {
             const itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
-            const currentSlot = getCurrentSlotName();
-            poolCountSpan.innerText = `${itemsToShow.length} ${currentSlot} items available`;
-        } else if (!dataLoaded || draftPositions.length === 0) {
-            poolCountSpan.innerText = `Loading slots...`;
+            poolCountSpan.innerText = `${itemsToShow.length} items available`;
         } else {
-            poolCountSpan.innerText = `Waiting for turn...`;
+            poolCountSpan.innerText = 'Loading...';
         }
     }
     
     // Render available items
     if (availableContainer) {
-        if (!dataLoaded || draftPositions.length === 0) {
+        if (!draftPositions.length) {
             availableContainer.innerHTML = '<div class="empty-state">⏳ Loading draft slots...</div>';
         } else if (isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏆 Draft Complete! 🏆</div>';
@@ -634,7 +528,7 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players and their slots
+    // Render players
     if (playersContainer && draftPositions.length > 0) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -656,7 +550,7 @@ function renderDraftScreen() {
             });
             positionsHtml += '</div>';
             
-            // Build drafted items HTML
+            // Build items HTML
             let itemsHtml = '<div style="margin-top: 10px;"><strong>📋 Your Picks:</strong><br>';
             if (playersItems[i].length === 0) {
                 itemsHtml += '<em style="color: #999;">No picks yet</em>';
@@ -667,7 +561,6 @@ function renderDraftScreen() {
             }
             itemsHtml += '</div>';
             
-            // Calculate total score
             const totalScore = playersItems[i].reduce((sum, item) => sum + (item.score || 0), 0);
             
             playerCard.innerHTML = `
@@ -718,20 +611,12 @@ function makePick(item) {
         return;
     }
     
-    const currentPlayerIndex = getCurrentPlayerIndex();
     const currentSlot = getCurrentSlotName();
     
     if (item.category !== currentSlot) {
-        showToast(`❌ Please select a ${currentSlot}! You tried to pick a ${item.category}.`, 3000);
+        showToast(`❌ Please select a ${currentSlot}!`, 2000);
         return;
     }
-    
-    if (!isCategoryAvailableForPlayer(currentPlayerIndex, item.category)) {
-        showToast(`❌ You already picked a ${item.category}!`, 2000);
-        return;
-    }
-    
-    console.log(`Making pick: ${item.name} for slot ${currentSlot}`);
     
     socket.emit('makePick', { 
         roomCode: roomCode, 
@@ -740,8 +625,6 @@ function makePick(item) {
 }
 
 function applyPick(data) {
-    console.log('Applying pick:', data);
-    
     // Remove from available items
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
@@ -756,28 +639,20 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
-        // Determine the slot for this pick
-        let slotCategory = data.category;
-        if (!slotCategory && draftPositions && playersItems[playerIndex]) {
-            slotCategory = draftPositions[playersItems[playerIndex].length]?.position || 'Unknown';
-        }
+        const slotCategory = draftPositions[playersItems[playerIndex].length]?.position || 'Unknown';
         
-        // Add to player's items
         playersItems[playerIndex].push({ 
             name: data.item,
             category: slotCategory,
             score: data.score || 0
         });
         
-        // Track filled slots
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
         if (!playerFilledSlots[playerIndex].includes(slotCategory)) {
             playerFilledSlots[playerIndex].push(slotCategory);
         }
-        
-        console.log(`Player ${playerIndex} picked ${data.item} for slot ${slotCategory}`);
     }
     
     currentPickIndex++;
@@ -900,7 +775,7 @@ function init() {
     const resetBtn = document.getElementById('resetGameBtn');
     if (resetBtn) {
         resetBtn.onclick = () => {
-            if (confirm('Reset the current draft? This will reload the page.')) {
+            if (confirm('Reset the current draft?')) {
                 window.location.reload();
             }
         };
@@ -916,8 +791,6 @@ function init() {
                     const randomItem = availableForPlayer[Math.floor(Math.random() * availableForPlayer.length)];
                     makePick(randomItem);
                     showToast("Auto-drafting...", 1500);
-                } else {
-                    showToast("No items available to draft!", 2000);
                 }
             } else if (!gameStarted) {
                 showToast("Game hasn't started yet!", 2000);
@@ -930,7 +803,6 @@ function init() {
     showToast('Waiting for game to start...', 3000);
 }
 
-// Make sure DOM is loaded before initializing
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
