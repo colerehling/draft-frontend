@@ -229,6 +229,7 @@ function setupSocketListeners() {
     });
     
     socket.on('pickMade', (data) => {
+        console.log('Pick made event received:', data);
         applyPick(data);
     });
     
@@ -372,6 +373,8 @@ function getAvailableItemsForPlayer(playerIndex) {
 }
 
 function startDraftGame(state) {
+    console.log('Starting draft game with state:', state);
+    
     gameStarted = true;
     
     document.getElementById('lobbyScreen').style.display = 'none';
@@ -383,11 +386,22 @@ function startDraftGame(state) {
     numPlayers = state.players.length;
     numRounds = draftPositions.length;
     totalPicks = numPlayers * numRounds;
+    
+    // CRITICAL FIX: Initialize playersItems for the host
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
     
+    console.log(`Initialized playersItems for ${numPlayers} players`);
+    
     if (state.availableItems) {
         availableItems = state.availableItems;
+    }
+    
+    if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
+        itemsWithScores = {};
+        state.itemsWithScores.forEach(item => {
+            itemsWithScores[item.item_name] = item.score;
+        });
     }
     
     if (state.draftOrder) {
@@ -408,8 +422,8 @@ function startDraftGame(state) {
         }
     }
     
-    currentPickIndex = 0;
-    currentRound = draftOrder[0]?.round || 1;
+    currentPickIndex = state.currentPickIndex || 0;
+    currentRound = draftOrder[currentPickIndex]?.round || 1;
     TIMER_DURATION = state.timerSeconds || 180;
     timeRemaining = TIMER_DURATION;
     
@@ -501,11 +515,14 @@ function renderDraftScreen() {
             let slotsHtml = '<div class="player-slots"><strong>🎯 Slots:</strong><br>';
             draftPositions.forEach((pos, idx) => {
                 const isFilled = filledSlots.includes(pos.position);
-                const isCurrentSlot = idx === playersItems[i].length && isCurrentTurn && !isDraftComplete;
+                const isCurrentSlot = idx === playersItems[i]?.length && isCurrentTurn && !isDraftComplete;
                 const slotStyle = isFilled ? 'color: #4CAF50;' : (isCurrentSlot ? 'color: #ff9800; font-weight: bold;' : 'color: #999;');
                 slotsHtml += `<div style="${slotStyle}">${isFilled ? '✓' : '○'} ${pos.position}</div>`;
             });
             slotsHtml += '</div>';
+            
+            // Debug log to see what items each player has
+            console.log(`Player ${i} (${playerName}) has ${playersItems[i]?.length || 0} picks:`, playersItems[i]);
             
             playerCol.innerHTML = `
                 <div class="player-header">
@@ -513,15 +530,15 @@ function renderDraftScreen() {
                 </div>
                 ${slotsHtml}
                 <div class="drafted-list">
-                    ${playersItems[i].length === 0 
+                    ${!playersItems[i] || playersItems[i].length === 0 
                         ? '<div class="empty-state">✨ No picks yet</div>'
                         : playersItems[i].map((item, idx) => `
-                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)} (${item.score} pts)</div>
+                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)} (${item.score || 0} pts)</div>
                         `).join('')
                     }
                 </div>
                 <div class="player-total">
-                    <strong>🏆 Total: ${playersItems[i].reduce((sum, item) => sum + (item.score || 0), 0)} pts</strong>
+                    <strong>🏆 Total: ${playersItems[i]?.reduce((sum, item) => sum + (item.score || 0), 0) || 0} pts</strong>
                 </div>
             `;
             playersContainer.appendChild(playerCol);
@@ -562,15 +579,22 @@ function makePick(item) {
         return;
     }
     
+    console.log(`Making pick: ${item.name} for slot ${currentSlot}`);
     socket.emit('makePick', { roomCode: roomCode, itemName: item.name });
 }
 
 function applyPick(data) {
+    console.log('Applying pick:', data);
+    console.log('Current playersItems before update:', JSON.parse(JSON.stringify(playersItems)));
+    
     // Remove from available items
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
-    if (itemIndex !== -1) availableItems.splice(itemIndex, 1);
+    if (itemIndex !== -1) {
+        availableItems.splice(itemIndex, 1);
+        console.log(`Removed ${data.item} from available items`);
+    }
     
-    // Find player index
+    // Find player index by id or name
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
         if (playersData[i].id === data.playerId || playersData[i].name === data.playerName) {
@@ -579,21 +603,31 @@ function applyPick(data) {
         }
     }
     
+    console.log(`Player index: ${playerIndex}, Player name: ${data.playerName}`);
+    
     if (playerIndex !== -1) {
-        const slotCategory = draftPositions[playersItems[playerIndex].length]?.position || 'Unknown';
+        // Determine the slot for this pick based on how many items they already have
+        const currentSlotIndex = playersItems[playerIndex].length;
+        const slotCategory = draftPositions[currentSlotIndex]?.position || 'Unknown';
         
+        console.log(`Adding ${data.item} to player ${playerIndex} for slot ${slotCategory}`);
+        
+        // Add to player's items
         playersItems[playerIndex].push({ 
             name: data.item,
             category: slotCategory,
             score: data.score || 0
         });
         
+        // Track filled slots
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
         if (!playerFilledSlots[playerIndex].includes(slotCategory)) {
             playerFilledSlots[playerIndex].push(slotCategory);
         }
+        
+        console.log(`Player ${playerIndex} now has ${playersItems[playerIndex].length} items`);
     }
     
     currentPickIndex++;
@@ -601,6 +635,9 @@ function applyPick(data) {
         currentRound = draftOrder[currentPickIndex].round;
     }
     
+    console.log('Current playersItems after update:', JSON.parse(JSON.stringify(playersItems)));
+    
+    // Force a complete re-render
     renderDraftScreen();
 }
 
