@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Draft Game | Setup</title>
+    <title>Draft Anything</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
@@ -11,7 +11,7 @@
 <div class="draft-app">
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
         <div>
-            <h1>DRAFT GAME</h1>
+            <h1>DRAFT ANYTHING</h1>
             <div class="sub">Multiplayer draft · Timed picks · 2-8 players</div>
         </div>
         <div class="badge" id="dbStatus">🔄 Connecting...</div>
@@ -70,7 +70,6 @@
                     <span id="numPlayersHost" class="config-value">2</span>
                     <button class="config-btn increment" id="incPlayersHost">+</button>
                 </div>
-                <div class="config-hint">More players = longer draft</div>
             </div>
 
             <!-- Draft Mode Selection - STYLED LIKE CATEGORY SELECTION -->
@@ -112,7 +111,7 @@
             <div id="dynamicTemplateCard" class="config-card" style="display: none;">
                 <div class="config-label">
                     <span class="label-icon">🎯</span>
-                    Draft Template (Dynamic Mode)
+                    Draft Category (Dynamic Mode)
                 </div>
                 <div id="dynamicTemplateGrid" class="category-grid-small"></div>
                 <div id="selectedTemplateDisplay" class="selected-category-display" style="display: none;">
@@ -120,14 +119,14 @@
                     <span class="selected-category-badge" id="selectedTemplateRounds"></span>
                     <button id="clearTemplateBtn" class="small-btn">Change</button>
                 </div>
-                <div class="config-hint">Choose a template with specific slots to fill</div>
+                <div class="config-hint">Choose what you'll be drafting</div>
             </div>
 
             <!-- Snake/Regular Draft Type (for Simple mode) -->
             <div id="simpleOrderCard" class="config-card">
                 <div class="config-label">
                     <span class="label-icon">🔄</span>
-                    Draft Order (Simple Mode)
+                    Draft Order
                 </div>
                 <div class="draft-type-options">
                     <label class="draft-type-option">
@@ -163,7 +162,7 @@
             <div id="dynamicOrderCard" class="config-card" style="display: none;">
                 <div class="config-label">
                     <span class="label-icon">🔄</span>
-                    Draft Order (Dynamic Mode)
+                    Draft Order
                 </div>
                 <div class="draft-type-options">
                     <label class="draft-type-option">

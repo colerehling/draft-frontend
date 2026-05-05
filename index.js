@@ -69,7 +69,10 @@ function getCategoryIcon(tableName) {
         'fruits': '🍏',
         'fast_food_meal_items': '🍔',
         'movie_night_items': '🎬',
-        'beach_day_items': '🏖️'
+        'beach_day_items': '🏖️',
+        'zombie_apocalypse': '🧟',
+        'zookeeper': '🦁',
+        'sports_nicknames': '🏅'
     };
     return iconMap[tableName] || '👽';
 }
