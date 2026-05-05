@@ -70,15 +70,6 @@ function loadSetup() {
     return true;
 }
 
-function generateRandomPlayerOrder(players) {
-    const indices = players.map((_, i) => i);
-    for (let i = indices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [indices[i], indices[j]] = [indices[j], indices[i]];
-    }
-    return indices;
-}
-
 // Socket event handlers
 function setupSocketListeners() {
     socket.on('connect', () => {
@@ -271,7 +262,9 @@ function startDraftGame(state) {
     document.getElementById('mainTitle').innerHTML = '🎮 MULTIPLAYER DRAFT';
     document.getElementById('subTitle').innerHTML = `Room: ${roomCode} | ${state.categoryName}`;
     
+    // Use the server's ordered data
     playersData = state.players;
+    playerOrder = state.randomPlayerOrder;
     numPlayers = state.players.length;
     numRounds = state.numRounds;
     totalPicks = numPlayers * numRounds;
@@ -281,18 +274,6 @@ function startDraftGame(state) {
     state.itemsWithScores.forEach(item => {
         itemsWithScores[item.item_name] = item.score;
     });
-    
-    playerOrder = generateRandomPlayerOrder(playersData);
-    
-    const orderedPlayers = [];
-    const orderedPlayersItems = [];
-    for (let i = 0; i < playerOrder.length; i++) {
-        const originalIndex = playerOrder[i];
-        orderedPlayers.push(playersData[originalIndex]);
-        orderedPlayersItems.push(playersItems[originalIndex]);
-    }
-    playersData = orderedPlayers;
-    playersItems = orderedPlayersItems;
     
     draftOrder = state.draftOrder;
     currentPickIndex = state.currentPickIndex;
@@ -354,7 +335,7 @@ function renderDraftScreen() {
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
-            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === getOriginalPlayerIndex(i));
+            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
             const playerName = getPlayerName(i);
             
             const playerCol = document.createElement('div');
@@ -380,7 +361,7 @@ function renderDraftScreen() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
     } else if (currentPlayerIndex !== -1) {
-        const currentPlayerName = getPlayerNameByOriginalIndex(currentPlayerIndex);
+        const currentPlayerName = getPlayerName(currentPlayerIndex);
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (gameStarted && isMyTurn) {
@@ -394,17 +375,10 @@ function renderDraftScreen() {
     }
 }
 
-function getOriginalPlayerIndex(displayIndex) {
-    return playerOrder[displayIndex];
-}
-
-function getPlayerNameByOriginalIndex(originalIndex) {
-    for (let i = 0; i < playerOrder.length; i++) {
-        if (playerOrder[i] === originalIndex) {
-            return playersData[i].name;
-        }
-    }
-    return 'Unknown';
+function getCurrentPlayerIndex() {
+    if (currentPickIndex >= draftOrder.length) return -1;
+    // draftOrder now contains indices that match the displayed player order
+    return draftOrder[currentPickIndex].playerIndex;
 }
 
 function makePick(item) {
@@ -437,11 +411,6 @@ function applyPick(data) {
     }
     
     renderDraftScreen();
-}
-
-function getCurrentPlayerIndex() {
-    if (currentPickIndex >= draftOrder.length) return -1;
-    return draftOrder[currentPickIndex].playerIndex;
 }
 
 function getPlayerName(playerIndex) {
