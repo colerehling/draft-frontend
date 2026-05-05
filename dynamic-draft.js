@@ -518,9 +518,9 @@ if (playersContainer && draftPositions.length > 0) {
         const playerCol = document.createElement('div');
         playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
         
-        let slotsHtml = '<div class="player-slots" style="display: flex; flex-direction: column; gap: 5px;"><strong>🎯 Selections:</strong>';
+        let slotsHtml = '<div class="player-slots" style="display: flex; flex-direction: column; gap: 5px;"><strong style="color: #eef2ff;">🎯 Selections:</strong>';
         
-        // Display each category on its own line, one below the other
+        // Display each category on its own line with colon after category name
         draftPositions.forEach((pos) => {
             const selectedItem = itemMap[pos.position];
             const isFilled = filledSlots.includes(pos.position);
@@ -530,17 +530,17 @@ if (playersContainer && draftPositions.length > 0) {
                 slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
             } else if (isCurrentTurn && !isFilled) {
                 // Current slot to pick - orange color
-                slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}</div>`;
+                slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}:</div>`;
             } else {
-                // Empty slots - gray color
-                slotsHtml += `<div style="color: #999;">○ ${pos.position}</div>`;
+                // Empty slots - same color as item names in available pool (#eef2ff)
+                slotsHtml += `<div style="color: #eef2ff;">○ ${pos.position}:</div>`;
             }
         });
         slotsHtml += '</div>';
         
         playerCol.innerHTML = `
             <div class="player-header">
-                <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
+                <div class="player-name" style="color: #eef2ff;">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
             </div>
             ${slotsHtml}
         `;
