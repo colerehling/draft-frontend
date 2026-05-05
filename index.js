@@ -72,7 +72,14 @@ function getCategoryIcon(tableName) {
         'beach_day_items': '🏖️',
         'zombie_apocalypse': '🧟',
         'zookeeper': '🦁',
-        'sports_nicknames': '🏅'
+        'sports_nicknames': '🏅',
+        'bald_guys': '👨‍🦲',
+        'chips': '🥔',
+        'college_mascots': '🎓',
+        'hbo_shows': '📺',
+        'smallest_states_by_size': '📏',
+        'tv_villains': '👺',
+        'world_leaders': '🌍'
     };
     return iconMap[tableName] || '👽';
 }
