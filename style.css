@@ -890,12 +890,13 @@ input[name="draftType"], input[name="draftTypeHost"] {
 }
 
 .player-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    color: #eef2ff;
 }
 
 .ready-status {
