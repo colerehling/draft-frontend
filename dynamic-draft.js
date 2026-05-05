@@ -104,6 +104,7 @@ async function loadItems() {
                 score: parseFloat(item.score) || 0
             }));
             console.log(`Host loaded ${availableItems.length} items`);
+            console.log('Sample items:', availableItems.slice(0, 3));
         }
     } catch (error) {
         console.error('Error loading items:', error);
@@ -168,49 +169,25 @@ function setupSocketListeners() {
         }
     });
     
-    // THE FIX: Both host and guest get slots from the server's draftStarted event
     socket.on('draftStarted', (state) => {
-    console.log('===== FULL DRAFT STARTED DATA =====');
-    console.log(JSON.stringify(state, null, 2));
-    console.log('====================================');
-    
-    // Try all possible locations for positions
-    if (state.positions) {
-        console.log('Found positions at state.positions:', state.positions);
-        draftPositions = state.positions;
-    } else if (state.draftState && state.draftState.positions) {
-        console.log('Found positions at state.draftState.positions:', state.draftState.positions);
-        draftPositions = state.draftState.positions;
-    } else if (state.draftState && state.draftState.draftPositions) {
-        console.log('Found positions at state.draftState.draftPositions:', state.draftState.draftPositions);
-        draftPositions = state.draftState.draftPositions;
-    } else {
-        console.error('NO POSITIONS FOUND IN STATE!');
-        console.log('Available keys in state:', Object.keys(state));
-        if (state.draftState) {
-            console.log('Available keys in draftState:', Object.keys(state.draftState));
-        }
-    }
-    
-    numRounds = draftPositions.length;
-    console.log('Final draftPositions:', draftPositions);
+        console.log('===== FULL DRAFT STARTED DATA =====');
+        console.log(JSON.stringify(state, null, 2));
+        console.log('====================================');
         
         // Extract positions from the server data
         if (state.positions) {
             draftPositions = state.positions;
             numRounds = draftPositions.length;
-            console.log('✅ Slots loaded from server:', draftPositions);
+            console.log('Found positions at state.positions:', draftPositions);
         } else if (state.draftState && state.draftState.positions) {
             draftPositions = state.draftState.positions;
             numRounds = draftPositions.length;
-            console.log('✅ Slots loaded from draftState:', draftPositions);
+            console.log('Found positions at state.draftState.positions:', draftPositions);
         }
         
         // Extract items
         if (state.availableItems) {
             availableItems = state.availableItems;
-        } else if (state.draftState && state.draftState.availableItems) {
-            availableItems = state.draftState.availableItems;
         } else if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
             availableItems = state.itemsWithScores.map(item => ({
                 name: item.item_name,
@@ -222,9 +199,10 @@ function setupSocketListeners() {
         // Get template name
         if (state.categoryName) {
             currentTemplateDisplayName = state.categoryName;
-        } else if (state.draftState && state.draftState.categoryName) {
-            currentTemplateDisplayName = state.draftState.categoryName;
         }
+        
+        console.log('Final draftPositions:', draftPositions);
+        console.log('✅ Slots loaded from server:', draftPositions);
         
         startDraftGame(state);
     });
@@ -358,10 +336,19 @@ function updatePlayersList() {
 
 function getCurrentSlotName() {
     if (!draftPositions || draftPositions.length === 0) {
+        console.log('getCurrentSlotName - draftPositions empty');
         return 'Loading...';
     }
     const currentPlayerIndex = getCurrentPlayerIndex();
-    const slotIndex = currentPlayerIndex !== -1 ? (playersItems[currentPlayerIndex]?.length || 0) : 0;
+    console.log(`getCurrentSlotName - currentPlayerIndex: ${currentPlayerIndex}`);
+    
+    if (currentPlayerIndex === -1) {
+        return draftPositions[0]?.position || 'Loading...';
+    }
+    
+    const slotIndex = playersItems[currentPlayerIndex]?.length || 0;
+    console.log(`getCurrentSlotName - slotIndex: ${slotIndex}, playersItems length: ${playersItems[currentPlayerIndex]?.length}`);
+    
     if (slotIndex < draftPositions.length) {
         return draftPositions[slotIndex].position;
     }
@@ -371,15 +358,31 @@ function getCurrentSlotName() {
 function getAvailableItemsForPlayer(playerIndex) {
     const currentSlot = getCurrentSlotName();
     
+    console.log(`getAvailableItemsForPlayer - Current slot: ${currentSlot}`);
+    console.log(`getAvailableItemsForPlayer - Total available items: ${availableItems.length}`);
+    
     if (currentSlot === 'Complete' || currentSlot === 'Loading...') {
         return [];
     }
     
     const filledSlots = playerFilledSlots[playerIndex] || [];
+    console.log(`getAvailableItemsForPlayer - Filled slots for player ${playerIndex}:`, filledSlots);
     
-    return availableItems.filter(item => {
-        return item.category === currentSlot && !filledSlots.includes(item.category);
+    const filtered = availableItems.filter(item => {
+        const matchesCategory = item.category === currentSlot;
+        const alreadyFilled = filledSlots.includes(item.category);
+        if (!matchesCategory) {
+            console.log(`Item "${item.name}" has category "${item.category}" but we need "${currentSlot}"`);
+        }
+        return matchesCategory && !alreadyFilled;
     });
+    
+    console.log(`getAvailableItemsForPlayer - Found ${filtered.length} items for slot ${currentSlot}`);
+    if (filtered.length === 0 && availableItems.length > 0) {
+        console.log('Available item categories:', [...new Set(availableItems.map(i => i.category))]);
+    }
+    
+    return filtered;
 }
 
 function startDraftGame(state) {
@@ -402,6 +405,9 @@ function startDraftGame(state) {
     // Initialize empty arrays for tracking
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
+    
+    console.log(`Initialized playersItems for ${numPlayers} players`);
+    console.log(`playerFilledSlots initialized:`, playerFilledSlots);
     
     // Get draft order
     if (state.draftOrder) {
@@ -474,6 +480,8 @@ function renderDraftScreen() {
             availableContainer.innerHTML = '<div class="empty-state">⏳ Waiting for draft to start...</div>';
         } else {
             const itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
+            
+            console.log(`Rendering - Current player index: ${currentPlayerIndex}, Current slot: ${currentSlot}, Items to show: ${itemsToShow.length}`);
             
             if (itemsToShow.length === 0) {
                 availableContainer.innerHTML = `<div class="empty-state">⚠️ No ${currentSlot} items available! ⚠️</div>`;
