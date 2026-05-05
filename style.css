@@ -198,11 +198,6 @@ h1::before {
   animation: pulse 1s infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
 .player-header {
   display: flex;
   justify-content: space-between;
@@ -323,11 +318,36 @@ h1::before {
   align-items: center;
   flex: 1;
   margin-right: 1rem;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .item-name {
   font-weight: 500;
   color: #eef2ff;
+}
+
+.item-category {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+}
+
+.item-category-tag {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+.item-score-small {
+  font-size: 11px;
+  color: #facc15;
+  margin-left: 6px;
 }
 
 .draft-btn {
@@ -991,7 +1011,6 @@ footer {
   border-radius: 20px;
 }
 
-/* FIXED: Best/Worst picks containers - properly sized */
 .result-details {
   padding: 20px;
   background: rgba(0, 0, 0, 0.2);
@@ -1063,9 +1082,17 @@ footer {
   border-left: 3px solid #10b981;
 }
 
+.chemistry-item.synergy .chemistry-text {
+  color: #10b981;
+}
+
 .chemistry-item.conflict {
   background: rgba(239, 68, 68, 0.15);
   border-left: 3px solid #ef4444;
+}
+
+.chemistry-item.conflict .chemistry-text {
+  color: #f87171;
 }
 
 .chemistry-icon {
@@ -1153,6 +1180,136 @@ footer {
   letter-spacing: 2px;
 }
 
+/* Dynamic Draft Styles */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.filter-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  background: #1e293b;
+  border: 1px solid #334155;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #cbd5f0;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  background: #2d3a52;
+}
+
+.filter-btn.active {
+  background: #facc15;
+  color: #0f172a;
+  border-color: #facc15;
+}
+
+.clear-filter-btn {
+  background: #1f2a3e;
+  border: 1px solid #334155;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #cbd5f0;
+}
+
+.clear-filter-btn:hover {
+  background: #2d3a52;
+}
+
+.player-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+}
+
+.slot-item {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slot-filled {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.slot-empty {
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+}
+
+.slot-current {
+  background: rgba(250, 204, 21, 0.3);
+  color: #facc15;
+  border: 1px solid #facc15;
+  animation: pulse 1s infinite;
+}
+
+.item-slot {
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+/* Draft Mode Select Dropdown */
+.draft-mode-select {
+  width: 100%;
+  padding: 12px 15px;
+  background: #1e293b;
+  border: 2px solid #facc15;
+  border-radius: 12px;
+  color: #eef2ff;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.draft-mode-select:hover {
+  background: #2d3a52;
+  border-color: #fbbf24;
+}
+
+.draft-mode-select:focus {
+  outline: none;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
+}
+
+.draft-mode-select option {
+  background: #1e293b;
+  color: #eef2ff;
+  padding: 10px;
+}
+
 /* Responsive */
 @media (min-width: 768px) {
   .result-name.champion-text {
@@ -1235,305 +1392,13 @@ footer {
   .chemistry-list {
     flex-direction: column;
   }
-}
-
-/* Chemistry Item Styling */
-.chemistry-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  border-radius: 24px;
-  font-size: 13px;
-  background: rgba(255, 255, 255, 0.05);
-  word-break: break-word;
-}
-
-.chemistry-item.synergy {
-  background: rgba(16, 185, 129, 0.15);
-  border-left: 3px solid #10b981;
-}
-
-.chemistry-item.synergy .chemistry-text {
-  color: #10b981;
-}
-
-.chemistry-item.conflict {
-  background: rgba(239, 68, 68, 0.15);
-  border-left: 3px solid #ef4444;
-}
-
-.chemistry-item.conflict .chemistry-text {
-  color: #f87171;
-}
-
-.chemistry-text {
-  flex: 1;
-  word-break: break-word;
-}
-
-/* Dynamic Draft Styles */
-.filter-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 12px;
-    flex-wrap: wrap;
-}
-
-.filter-label {
-    font-size: 14px;
-    color: #94a3b8;
-}
-
-.filter-buttons {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.filter-btn {
-    background: #1e293b;
-    border: 1px solid #334155;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 13px;
-    cursor: pointer;
-    color: #cbd5f0;
-    transition: all 0.2s;
-}
-
-.filter-btn:hover {
-    background: #2d3a52;
-}
-
-.filter-btn.active {
-    background: #facc15;
-    color: #0f172a;
-    border-color: #facc15;
-}
-
-.clear-filter-btn {
-    background: #1f2a3e;
-    border: 1px solid #334155;
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 13px;
-    cursor: pointer;
-    color: #cbd5f0;
-}
-
-.clear-filter-btn:hover {
-    background: #2d3a52;
-}
-
-.player-slots {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 10px;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-}
-
-.slot-item {
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.slot-filled {
-    background: rgba(16, 185, 129, 0.2);
-    color: #10b981;
-}
-
-.slot-empty {
-    background: rgba(100, 116, 139, 0.2);
-    color: #94a3b8;
-}
-
-.slot-current {
-    background: rgba(250, 204, 21, 0.3);
-    color: #facc15;
-    border: 1px solid #facc15;
-    animation: pulse 1s infinite;
-}
-
-.item-slot {
-    font-size: 12px;
-    margin-left: 8px;
-}
-
-.item-score-small {
-    font-size: 11px;
-    color: #facc15;
-    margin-left: 6px;
+  .item-category {
+    font-size: 10px;
+    white-space: normal;
+  }
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Draft Mode Select Dropdown */
-.draft-mode-select {
-    width: 100%;
-    padding: 12px 15px;
-    background: #1e293b;
-    border: 2px solid #facc15;
-    border-radius: 12px;
-    color: #eef2ff;
-    font-size: 14px;
-    cursor: pointer;
-    font-family: inherit;
-    transition: all 0.2s;
-}
-
-.draft-mode-select:hover {
-    background: #2d3a52;
-    border-color: #fbbf24;
-}
-
-.draft-mode-select:focus {
-    outline: none;
-    border-color: #f59e0b;
-    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.3);
-}
-
-.draft-mode-select option {
-    background: #1e293b;
-    color: #eef2ff;
-    padding: 10px;
-}
-
-/* Item category styling */
-.item-category {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-left: 10px;
-    padding: 2px 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-}
-
-.item-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex: 1;
-    margin-right: 1rem;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-/* Category display styles */
-.item-category {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-left: 10px;
-    padding: 2px 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-    white-space: nowrap;
-}
-
-.item-category-tag {
-    font-size: 10px;
-    color: #94a3b8;
-    margin-left: 8px;
-    padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-}
-
-.item-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex: 1;
-    margin-right: 1rem;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-@media (max-width: 768px) {
-    .item-category {
-        font-size: 10px;
-        white-space: normal;
-    }
-}
-
-/* Player positions styles */
-.player-positions {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    margin-bottom: 10px;
-    padding: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
-}
-
-.slot-item {
-    font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.slot-filled {
-    background: rgba(16, 185, 129, 0.2);
-    color: #10b981;
-}
-
-.slot-empty {
-    background: rgba(100, 116, 139, 0.2);
-    color: #94a3b8;
-}
-
-.slot-current {
-    background: rgba(250, 204, 21, 0.3);
-    color: #facc15;
-    border: 1px solid #facc15;
-    animation: pulse 1s infinite;
-}
-
-.item-category {
-    font-size: 12px;
-    color: #94a3b8;
-    margin-left: 10px;
-    padding: 2px 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 20px;
-}
-
-.item-category-tag {
-    font-size: 10px;
-    color: #94a3b8;
-    margin-left: 8px;
-    padding: 2px 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-}
-
-.item-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex: 1;
-    margin-right: 1rem;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
