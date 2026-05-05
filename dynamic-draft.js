@@ -501,49 +501,50 @@ function renderDraftScreen() {
         }
     }
     
-    if (playersContainer && draftPositions.length > 0) {
-        playersContainer.innerHTML = '';
-        for (let i = 0; i < numPlayers; i++) {
-            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
-            const playerName = getPlayerName(i);
-            const playerItems = playersItems[i] || [];
-            const filledSlots = playerFilledSlots[i] || [];
+    // Render players - Show selections next to each category
+if (playersContainer && draftPositions.length > 0) {
+    playersContainer.innerHTML = '';
+    for (let i = 0; i < numPlayers; i++) {
+        const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
+        const playerName = getPlayerName(i);
+        const playerItems = playersItems[i] || [];
+        const filledSlots = playerFilledSlots[i] || [];
+        
+        const itemMap = {};
+        playerItems.forEach(item => {
+            itemMap[item.category] = item.name;
+        });
+        
+        const playerCol = document.createElement('div');
+        playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
+        
+        let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
+        
+        // Display each category on its own line
+        draftPositions.forEach((pos) => {
+            const selectedItem = itemMap[pos.position];
+            const isFilled = filledSlots.includes(pos.position);
             
-            const itemMap = {};
-            playerItems.forEach(item => {
-                itemMap[item.category] = item.name;
-            });
-            
-            const playerCol = document.createElement('div');
-            playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
-            
-            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
-            draftPositions.forEach((pos) => {
-                const selectedItem = itemMap[pos.position];
-                const isFilled = filledSlots.includes(pos.position);
-                
-                if (selectedItem) {
-                    // Selected items in green
-                    slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
-                } else if (isCurrentTurn && !isFilled) {
-                    // Current slot to pick - orange color
-                    slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}: (Your turn to pick)</div>`;
-                } else {
-                    // Empty slots - same color as draft picks (gray)
-                    slotsHtml += `<div style="color: #999;">○ ${pos.position}</div>`;
-                }
-            });
-            slotsHtml += '</div>';
-            
-            playerCol.innerHTML = `
-                <div class="player-header">
-                    <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
-                </div>
-                ${slotsHtml}
-            `;
-            playersContainer.appendChild(playerCol);
-        }
+            // Each category on its own line with just the category name and selection
+            if (selectedItem) {
+                // Selected items in green
+                slotsHtml += `<div style="color: #4CAF50; margin-bottom: 5px;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+            } else {
+                // Empty slots - just the category name, no extra text
+                slotsHtml += `<div style="color: #999; margin-bottom: 5px;">○ ${pos.position}</div>`;
+            }
+        });
+        slotsHtml += '</div>';
+        
+        playerCol.innerHTML = `
+            <div class="player-header">
+                <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
+            </div>
+            ${slotsHtml}
+        `;
+        playersContainer.appendChild(playerCol);
     }
+}
     
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
