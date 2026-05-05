@@ -6,6 +6,10 @@ const API_BASE_URL = isDevelopment
     ? 'http://localhost:3000/api'
     : 'https://draft-backend-f40v.onrender.com/api';
 
+const SOCKET_URL = isDevelopment 
+    ? 'http://localhost:3000'
+    : 'https://draft-backend-f40v.onrender.com';
+
 console.log('Setup Page Loaded');
 
 // DOM Elements
@@ -452,6 +456,7 @@ if (createLobbyBtn) {
     };
 }
 
+// FIXED: Join button now checks game mode before redirecting
 const joinGameBtn = document.getElementById('joinGameBtn');
 if (joinGameBtn) {
     joinGameBtn.onclick = () => {
@@ -470,14 +475,45 @@ if (joinGameBtn) {
             return;
         }
         
-        const config = {
-            isHost: false,
-            roomCode: roomCode,
-            playerName: playerName
-        };
+        showToast('Connecting to game...', 2000);
         
-        localStorage.setItem('draftSetup', JSON.stringify(config));
-        window.location.href = 'draft.html';
+        const tempSocket = io(SOCKET_URL, {
+            transports: ['websocket', 'polling'],
+            withCredentials: true
+        });
+        
+        tempSocket.on('connect', () => {
+            console.log('Connected to check game type');
+            
+            tempSocket.emit('checkGameMode', { roomCode }, (response) => {
+                console.log('Game mode response:', response);
+                
+                if (response && response.success) {
+                    const draftMode = response.draftMode;
+                    const config = {
+                        isHost: false,
+                        roomCode: roomCode,
+                        playerName: playerName
+                    };
+                    localStorage.setItem('draftSetup', JSON.stringify(config));
+                    
+                    if (draftMode === 'dynamic') {
+                        window.location.href = 'dynamic-draft.html';
+                    } else {
+                        window.location.href = 'draft.html';
+                    }
+                } else {
+                    showToast(response?.error || 'Game not found', 3000);
+                }
+                tempSocket.disconnect();
+            });
+        });
+        
+        tempSocket.on('connect_error', (error) => {
+            console.error('Connection error:', error);
+            showToast('Could not connect to server', 3000);
+            tempSocket.disconnect();
+        });
     };
 }
 
