@@ -170,7 +170,30 @@ function setupSocketListeners() {
     
     // THE FIX: Both host and guest get slots from the server's draftStarted event
     socket.on('draftStarted', (state) => {
-        console.log('Draft started! State from server:', state);
+    console.log('===== FULL DRAFT STARTED DATA =====');
+    console.log(JSON.stringify(state, null, 2));
+    console.log('====================================');
+    
+    // Try all possible locations for positions
+    if (state.positions) {
+        console.log('Found positions at state.positions:', state.positions);
+        draftPositions = state.positions;
+    } else if (state.draftState && state.draftState.positions) {
+        console.log('Found positions at state.draftState.positions:', state.draftState.positions);
+        draftPositions = state.draftState.positions;
+    } else if (state.draftState && state.draftState.draftPositions) {
+        console.log('Found positions at state.draftState.draftPositions:', state.draftState.draftPositions);
+        draftPositions = state.draftState.draftPositions;
+    } else {
+        console.error('NO POSITIONS FOUND IN STATE!');
+        console.log('Available keys in state:', Object.keys(state));
+        if (state.draftState) {
+            console.log('Available keys in draftState:', Object.keys(state.draftState));
+        }
+    }
+    
+    numRounds = draftPositions.length;
+    console.log('Final draftPositions:', draftPositions);
         
         // Extract positions from the server data
         if (state.positions) {
