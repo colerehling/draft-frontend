@@ -461,7 +461,7 @@ function renderDraftScreen() {
         }
     }
     
-    // Render available items - NO SCORES
+    // Render available items
     if (availableContainer) {
         if (isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -497,24 +497,37 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players - NO SCORES
+    // Render players - Show selections next to each category
     if (playersContainer && draftPositions.length > 0) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
             const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
             const playerName = getPlayerName(i);
-            const filledSlots = playerFilledSlots[i] || [];
             const playerItems = playersItems[i] || [];
+            
+            // Create a map of category -> item name for easy lookup
+            const itemMap = {};
+            playerItems.forEach(item => {
+                itemMap[item.category] = item.name;
+            });
             
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
-            let slotsHtml = '<div class="player-slots"><strong>🎯 Slots:</strong><br>';
+            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
             draftPositions.forEach((pos, idx) => {
-                const isFilled = filledSlots.includes(pos.position);
+                const selectedItem = itemMap[pos.position];
                 const isCurrentSlot = idx === playerItems.length && isCurrentTurn && !isDraftComplete;
-                const slotStyle = isFilled ? 'color: #4CAF50; text-decoration: line-through;' : (isCurrentSlot ? 'color: #ff9800; font-weight: bold;' : 'color: #999;');
-                slotsHtml += `<div style="${slotStyle}">${isFilled ? '✓' : '○'} ${pos.position}</div>`;
+                const slotStyle = selectedItem ? 'color: #4CAF50;' : (isCurrentSlot ? 'color: #ff9800; font-weight: bold;' : 'color: #999;');
+                
+                if (selectedItem) {
+                    // Show the category with the selected item
+                    slotsHtml += `<div style="${slotStyle}">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+                } else if (isCurrentSlot) {
+                    slotsHtml += `<div style="${slotStyle}">▶ ${pos.position}: (Pick now)</div>`;
+                } else {
+                    slotsHtml += `<div style="${slotStyle}">○ ${pos.position}: (Not picked yet)</div>`;
+                }
             });
             slotsHtml += '</div>';
             
@@ -523,14 +536,6 @@ function renderDraftScreen() {
                     <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
                 </div>
                 ${slotsHtml}
-                <div class="drafted-list">
-                    ${playerItems.length === 0 
-                        ? '<div class="empty-state">✨ No picks yet</div>'
-                        : playerItems.map((item, idx) => `
-                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)}</div>
-                        `).join('')
-                    }
-                </div>
             `;
             playersContainer.appendChild(playerCol);
         }
