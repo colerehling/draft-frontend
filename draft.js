@@ -32,6 +32,7 @@ let playersItems = [];
 let availableItems = [];
 let itemsWithScores = {};
 let draftOrder = [];
+let playerOrder = []; // Store the random order of players
 
 // Load setup from localStorage
 function loadSetup() {
@@ -67,6 +68,18 @@ function loadSetup() {
     }
     
     return true;
+}
+
+// Generate random player order
+function generateRandomPlayerOrder(players) {
+    // Create array of player indices
+    const indices = players.map((_, i) => i);
+    // Shuffle the array
+    for (let i = indices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
 }
 
 // Socket event handlers
@@ -175,7 +188,7 @@ function createGameRoom() {
         categoryName: gameConfig.categoryName,
         numRounds: numRounds,
         timerMinutes: gameConfig.timerMinutes,
-        draftType: gameConfig.draftType,
+        draftType: 'random', // Set to random draft type
         playerName: gameConfig.hostName || 'Host'
     };
     
@@ -242,7 +255,7 @@ function updatePlayersList() {
         const div = document.createElement('div');
         div.className = 'player-item';
         div.innerHTML = `
-            <span>${getPlayerIcon(index)} ${escapeHtml(player.name)}</span>
+            <span style="color: #eef2ff;">${getPlayerIcon(index)} ${escapeHtml(player.name)}</span>
             <span style="color: ${player.isReady ? '#22c55e' : '#facc15'}">
                 ${player.isReady ? '✓ Ready' : '⏳ Waiting...'}
             </span>
@@ -271,6 +284,21 @@ function startDraftGame(state) {
     state.itemsWithScores.forEach(item => {
         itemsWithScores[item.item_name] = item.score;
     });
+    
+    // Generate random player order for display
+    playerOrder = generateRandomPlayerOrder(playersData);
+    
+    // Reorder playersData based on random order
+    const orderedPlayers = [];
+    const orderedPlayersItems = [];
+    for (let i = 0; i < playerOrder.length; i++) {
+        const originalIndex = playerOrder[i];
+        orderedPlayers.push(playersData[originalIndex]);
+        orderedPlayersItems.push(playersItems[originalIndex]);
+    }
+    playersData = orderedPlayers;
+    playersItems = orderedPlayersItems;
+    
     draftOrder = state.draftOrder;
     currentPickIndex = state.currentPickIndex;
     currentRound = draftOrder[currentPickIndex]?.round || 1;
@@ -313,7 +341,7 @@ function renderDraftScreen() {
                 card.className = 'draft-card';
                 card.innerHTML = `
                     <div class="item-info">
-                        <span class="item-name">${escapeHtml(item)}</span>
+                        <span class="item-name" style="color: #eef2ff;">${escapeHtml(item)}</span>
                     </div>
                     <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                         ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -331,14 +359,14 @@ function renderDraftScreen() {
     if (playersContainer) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
-            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
+            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === getOriginalPlayerIndex(i));
             const playerName = getPlayerName(i);
             
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             playerCol.innerHTML = `
                 <div class="player-header">
-                    <div class="player-name">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
+                    <div class="player-name" style="color: #eef2ff;">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
                 </div>
                 <div class="drafted-list">
                     ${playersItems[i].length === 0 
@@ -357,7 +385,7 @@ function renderDraftScreen() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
     } else if (currentPlayerIndex !== -1) {
-        const currentPlayerName = getPlayerName(currentPlayerIndex);
+        const currentPlayerName = getPlayerNameByOriginalIndex(currentPlayerIndex);
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (gameStarted && isMyTurn) {
@@ -369,6 +397,21 @@ function renderDraftScreen() {
             }
         }
     }
+}
+
+function getOriginalPlayerIndex(displayIndex) {
+    // Map display index back to original player index
+    return playerOrder[displayIndex];
+}
+
+function getPlayerNameByOriginalIndex(originalIndex) {
+    // Find player by original index in the original playersData
+    for (let i = 0; i < playerOrder.length; i++) {
+        if (playerOrder[i] === originalIndex) {
+            return playersData[i].name;
+        }
+    }
+    return 'Unknown';
 }
 
 function makePick(item) {

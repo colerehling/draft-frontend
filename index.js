@@ -79,7 +79,8 @@ function getCategoryIcon(tableName) {
         'hbo_shows': '📺',
         'smallest_states_by_size': '📏',
         'tv_villains': '👺',
-        'world_leaders': '🌍'
+        'world_leaders': '🌍',
+        'sports_with_no_ball':'🏒'
     };
     return iconMap[tableName] || '👽';
 }
