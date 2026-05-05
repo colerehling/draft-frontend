@@ -518,7 +518,7 @@ if (playersContainer && draftPositions.length > 0) {
         const playerCol = document.createElement('div');
         playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
         
-        let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
+        let slotsHtml = '<div class="player-slots" style="display: flex; flex-direction: column; gap: 5px;"><strong>🎯 Selections:</strong>';
         
         // Display each category on its own line, one below the other
         draftPositions.forEach((pos) => {
@@ -526,11 +526,14 @@ if (playersContainer && draftPositions.length > 0) {
             const isFilled = filledSlots.includes(pos.position);
             
             if (selectedItem) {
-                // Selected items show category and item
+                // Selected items in green
                 slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+            } else if (isCurrentTurn && !isFilled) {
+                // Current slot to pick - orange color
+                slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}</div>`;
             } else {
-                // Empty slots - just the category name with colon
-                slotsHtml += `<div>${pos.position}:</div>`;
+                // Empty slots - gray color
+                slotsHtml += `<div style="color: #999;">○ ${pos.position}</div>`;
             }
         });
         slotsHtml += '</div>';
