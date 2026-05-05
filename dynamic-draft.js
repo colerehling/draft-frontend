@@ -104,7 +104,6 @@ async function loadItems() {
                 score: parseFloat(item.score) || 0
             }));
             console.log(`Host loaded ${availableItems.length} items`);
-            console.log('Sample items:', availableItems.slice(0, 3));
         }
     } catch (error) {
         console.error('Error loading items:', error);
@@ -185,22 +184,15 @@ function setupSocketListeners() {
             console.log('Found positions at state.draftState.positions:', draftPositions);
         }
         
-        // CRITICAL FIX: Transform itemsWithScores into availableItems with proper structure
+        // Transform itemsWithScores into availableItems with proper structure
         if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
-            // This is the correct format - itemsWithScores has item_name, category, score
             availableItems = state.itemsWithScores.map(item => ({
                 name: item.item_name,
                 category: item.category,
                 score: parseFloat(item.score) || 0
             }));
             console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores`);
-            console.log('Sample transformed item:', availableItems[0]);
-            
-            // Verify we have Main category items
-            const mainItems = availableItems.filter(i => i.category === 'Main');
-            console.log(`Found ${mainItems.length} items with category 'Main':`, mainItems.slice(0, 3));
         } else if (state.availableItems && Array.isArray(state.availableItems) && state.itemsWithScores) {
-            // Fallback: if availableItems is strings but we have itemsWithScores
             availableItems = state.itemsWithScores.map(item => ({
                 name: item.item_name,
                 category: item.category,
@@ -384,15 +376,11 @@ function getAvailableItemsForPlayer(playerIndex) {
         return matchesCategory && !alreadyFilled;
     });
     
-    console.log(`Slot: ${currentSlot}, Found ${filtered.length} items`);
-    
     return filtered;
 }
 
 function startDraftGame(state) {
     console.log('Starting draft game');
-    console.log('draftPositions:', draftPositions);
-    console.log('availableItems count:', availableItems.length);
     
     gameStarted = true;
     
@@ -473,7 +461,7 @@ function renderDraftScreen() {
         }
     }
     
-    // Render available items
+    // Render available items - NO SCORES
     if (availableContainer) {
         if (isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -493,8 +481,7 @@ function renderDraftScreen() {
                     card.innerHTML = `
                         <div class="item-info">
                             <span class="item-name">${escapeHtml(item.name)}</span>
-                            <span class="item-category">📁 ${escapeHtml(item.category)}</span>
-                            <span class="item-score">⭐ ${item.score} pts</span>
+                            <span class="item-category">📋 ${escapeHtml(item.category)}</span>
                         </div>
                         <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                             ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -510,7 +497,7 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players
+    // Render players - NO SCORES
     if (playersContainer && draftPositions.length > 0) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -540,12 +527,9 @@ function renderDraftScreen() {
                     ${playerItems.length === 0 
                         ? '<div class="empty-state">✨ No picks yet</div>'
                         : playerItems.map((item, idx) => `
-                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)} (${item.score || 0} pts)</div>
+                            <div class="drafted-item">${idx + 1}. ${escapeHtml(item.name)}</div>
                         `).join('')
                     }
-                </div>
-                <div class="player-total">
-                    <strong>🏆 Total: ${playerItems.reduce((sum, item) => sum + (item.score || 0), 0)} pts</strong>
                 </div>
             `;
             playersContainer.appendChild(playerCol);
@@ -615,8 +599,7 @@ function applyPick(data) {
         
         playersItems[playerIndex].push({ 
             name: data.item,
-            category: slotCategory,
-            score: data.score || 0
+            category: slotCategory
         });
         
         if (!playerFilledSlots[playerIndex]) {
