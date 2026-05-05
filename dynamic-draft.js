@@ -31,6 +31,7 @@ let timeRemaining = 180;
 let TIMER_DURATION = 180;
 let playersItems = [];
 let availableItems = [];
+let allItemsMap = new Map(); // Store all items with their categories for lookup
 let draftOrder = [];
 let draftPositions = [];
 let playerFilledSlots = [];
@@ -103,6 +104,10 @@ async function loadItems() {
                 category: item.category,
                 score: parseFloat(item.score) || 0
             }));
+            // Store all items in a map for quick lookup
+            availableItems.forEach(item => {
+                allItemsMap.set(item.name, item.category);
+            });
             console.log(`Host loaded ${availableItems.length} items`);
         }
     } catch (error) {
@@ -178,10 +183,6 @@ function setupSocketListeners() {
             draftPositions = state.positions;
             numRounds = draftPositions.length;
             console.log('Found positions at state.positions:', draftPositions);
-        } else if (state.draftState && state.draftState.positions) {
-            draftPositions = state.draftState.positions;
-            numRounds = draftPositions.length;
-            console.log('Found positions at state.draftState.positions:', draftPositions);
         }
         
         // Transform itemsWithScores into availableItems with proper structure
@@ -191,27 +192,18 @@ function setupSocketListeners() {
                 category: item.category,
                 score: parseFloat(item.score) || 0
             }));
+            // Build the lookup map
+            allItemsMap.clear();
+            availableItems.forEach(item => {
+                allItemsMap.set(item.name, item.category);
+            });
             console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores`);
-        } else if (state.availableItems && Array.isArray(state.availableItems) && state.itemsWithScores) {
-            availableItems = state.itemsWithScores.map(item => ({
-                name: item.item_name,
-                category: item.category,
-                score: parseFloat(item.score) || 0
-            }));
-            console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores (fallback)`);
-        } else {
-            console.error('❌ No valid items data found in state!');
         }
         
         // Get template name
         if (state.categoryName) {
             currentTemplateDisplayName = state.categoryName;
-        } else if (state.draftState && state.draftState.categoryName) {
-            currentTemplateDisplayName = state.draftState.categoryName;
         }
-        
-        console.log('Final draftPositions:', draftPositions);
-        console.log('Final availableItems count:', availableItems.length);
         
         startDraftGame(state);
     });
@@ -223,7 +215,8 @@ function setupSocketListeners() {
         if (isMyTurn) {
             startTimer(data.timeRemaining);
             renderDraftScreen();
-            showToast(`🔥 YOUR TURN! Pick any item from an unfilled category! 🔥`, 4000);
+            const availableCategories = getAvailableCategoriesForPlayer(getCurrentPlayerIndex());
+            showToast(`🔥 YOUR TURN! Pick any item from: ${availableCategories.join(', ')} 🔥`, 4000);
         } else {
             stopTimer();
             renderDraftScreen();
@@ -343,6 +336,7 @@ function updatePlayersList() {
 }
 
 function getAvailableCategoriesForPlayer(playerIndex) {
+    if (playerIndex === -1) return [];
     const filledSlots = playerFilledSlots[playerIndex] || [];
     const allCategories = draftPositions.map(pos => pos.position);
     
@@ -416,7 +410,6 @@ function renderDraftScreen() {
     const activePlayerNameSpan = document.getElementById('activePlayerName');
     const turnMessageSpan = document.getElementById('turnMessage');
     const roundIndicator = document.getElementById('roundIndicator');
-    const currentPickNumberSpan = document.getElementById('currentPickNumber');
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
@@ -425,10 +418,6 @@ function renderDraftScreen() {
         roundIndicator.textContent = isDraftComplete 
             ? '🏁 Draft Complete! 🏁'
             : `Round ${currentRound} of ${numRounds} | Pick ${currentPickIndex + 1} of ${totalPicks}`;
-    }
-    
-    if (currentPickNumberSpan) {
-        currentPickNumberSpan.textContent = `${currentPickIndex + 1} of ${totalPicks}`;
     }
     
     if (poolCountSpan) {
@@ -510,7 +499,7 @@ function renderDraftScreen() {
             const playerItems = playersItems[i] || [];
             const filledSlots = playerFilledSlots[i] || [];
             
-            // Create a map of category -> item name for easy lookup
+            // Create a map of category -> item name
             const itemMap = {};
             playerItems.forEach(item => {
                 itemMap[item.category] = item.name;
@@ -519,7 +508,7 @@ function renderDraftScreen() {
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
-            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections (Pick any unfilled category):</strong><br>';
+            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
             draftPositions.forEach((pos) => {
                 const selectedItem = itemMap[pos.position];
                 const isFilled = filledSlots.includes(pos.position);
@@ -588,6 +577,24 @@ function makePick(item) {
 function applyPick(data) {
     console.log('Applying pick:', data);
     
+    // Get the category from the allItemsMap (preserved original data)
+    let itemCategory = allItemsMap.get(data.item);
+    
+    // If not found in map, try to find in availableItems
+    if (!itemCategory) {
+        const foundItem = availableItems.find(i => i.name === data.item);
+        if (foundItem) {
+            itemCategory = foundItem.category;
+        }
+    }
+    
+    // If still not found, use the category from the pick data or default
+    if (!itemCategory) {
+        itemCategory = data.category || 'Unknown';
+    }
+    
+    console.log(`Item "${data.item}" belongs to category: ${itemCategory}`);
+    
     // Remove from available items
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) {
@@ -603,21 +610,25 @@ function applyPick(data) {
         }
     }
     
+    console.log(`Player index: ${playerIndex}, Player name: ${data.playerName}`);
+    
     if (playerIndex !== -1) {
-        // Find which category this item belongs to
-        const itemCategory = availableItems.find(i => i.name === data.item)?.category || data.category;
-        
+        // Add the pick to player's items
         playersItems[playerIndex].push({ 
             name: data.item,
             category: itemCategory
         });
         
+        // Track filled slots
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
         if (!playerFilledSlots[playerIndex].includes(itemCategory)) {
             playerFilledSlots[playerIndex].push(itemCategory);
         }
+        
+        console.log(`Player ${playerIndex} now has picks:`, playersItems[playerIndex]);
+        console.log(`Player ${playerIndex} filled slots:`, playerFilledSlots[playerIndex]);
     }
     
     currentPickIndex++;
