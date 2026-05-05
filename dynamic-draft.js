@@ -520,18 +520,17 @@ if (playersContainer && draftPositions.length > 0) {
         
         let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
         
-        // Display each category on its own line
+        // Display each category on its own line, one below the other
         draftPositions.forEach((pos) => {
             const selectedItem = itemMap[pos.position];
             const isFilled = filledSlots.includes(pos.position);
             
-            // Each category on its own line with just the category name and selection
             if (selectedItem) {
-                // Selected items in green
-                slotsHtml += `<div style="color: #4CAF50; margin-bottom: 5px;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+                // Selected items show category and item
+                slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
             } else {
-                // Empty slots - just the category name, no extra text
-                slotsHtml += `<div style="color: #999; margin-bottom: 5px;">○ ${pos.position}</div>`;
+                // Empty slots - just the category name with colon
+                slotsHtml += `<div>${pos.position}:</div>`;
             }
         });
         slotsHtml += '</div>';
