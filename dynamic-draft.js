@@ -31,7 +31,7 @@ let timeRemaining = 180;
 let TIMER_DURATION = 180;
 let playersItems = [];
 let availableItems = [];
-let allItemsMap = new Map(); // Store all items with their categories for lookup
+let allItemsMap = new Map();
 let draftOrder = [];
 let draftPositions = [];
 let playerFilledSlots = [];
@@ -65,7 +65,6 @@ function loadSetup() {
             hostName: config.hostName || 'Host'
         }));
         
-        // Host loads data from API
         loadDraftPositions();
         loadItems();
     } else {
@@ -104,7 +103,6 @@ async function loadItems() {
                 category: item.category,
                 score: parseFloat(item.score) || 0
             }));
-            // Store all items in a map for quick lookup
             availableItems.forEach(item => {
                 allItemsMap.set(item.name, item.category);
             });
@@ -116,7 +114,6 @@ async function loadItems() {
     }
 }
 
-// Socket event handlers
 function setupSocketListeners() {
     socket.on('connect', () => {
         console.log('Socket connected:', socket.id);
@@ -178,21 +175,18 @@ function setupSocketListeners() {
         console.log(JSON.stringify(state, null, 2));
         console.log('====================================');
         
-        // Extract positions from the server data
         if (state.positions) {
             draftPositions = state.positions;
             numRounds = draftPositions.length;
             console.log('Found positions at state.positions:', draftPositions);
         }
         
-        // Transform itemsWithScores into availableItems with proper structure
         if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
             availableItems = state.itemsWithScores.map(item => ({
                 name: item.item_name,
                 category: item.category,
                 score: parseFloat(item.score) || 0
             }));
-            // Build the lookup map
             allItemsMap.clear();
             availableItems.forEach(item => {
                 allItemsMap.set(item.name, item.category);
@@ -200,7 +194,6 @@ function setupSocketListeners() {
             console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores`);
         }
         
-        // Get template name
         if (state.categoryName) {
             currentTemplateDisplayName = state.categoryName;
         }
@@ -211,6 +204,11 @@ function setupSocketListeners() {
     socket.on('turnChange', (data) => {
         console.log('Turn change:', data);
         isMyTurn = (data.playerId === myPlayerId);
+        
+        // Always update timer display for all players
+        if (data.timeRemaining) {
+            updateTimerDisplayOnly(data.timeRemaining);
+        }
         
         if (isMyTurn) {
             startTimer(data.timeRemaining);
@@ -242,6 +240,30 @@ function setupSocketListeners() {
     socket.on('startDraftError', (error) => {
         showToast(error, 3000);
     });
+}
+
+function updateTimerDisplayOnly(duration) {
+    const minutes = Math.floor(duration / 60);
+    const seconds = duration % 60;
+    const timerDisplayEl = document.getElementById('timerDisplay');
+    const timerBarFillEl = document.getElementById('timerBarFill');
+    
+    if (timerDisplayEl) {
+        timerDisplayEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (duration <= 10) {
+            timerDisplayEl.style.color = '#ef4444';
+        } else if (duration <= 30) {
+            timerDisplayEl.style.color = '#f97316';
+        } else {
+            timerDisplayEl.style.color = '#facc15';
+        }
+    }
+    
+    if (timerBarFillEl && TIMER_DURATION > 0) {
+        const percentage = (duration / TIMER_DURATION) * 100;
+        timerBarFillEl.style.width = Math.max(0, percentage) + '%';
+    }
 }
 
 function createGameRoom() {
@@ -339,19 +361,14 @@ function getAvailableCategoriesForPlayer(playerIndex) {
     if (playerIndex === -1) return [];
     const filledSlots = playerFilledSlots[playerIndex] || [];
     const allCategories = draftPositions.map(pos => pos.position);
-    
-    // Return categories that haven't been filled yet
     return allCategories.filter(category => !filledSlots.includes(category));
 }
 
 function getAvailableItemsForPlayer(playerIndex) {
     const availableCategories = getAvailableCategoriesForPlayer(playerIndex);
-    
-    // Show all items from categories that haven't been filled yet
     const filtered = availableItems.filter(item => {
         return availableCategories.includes(item.category);
     });
-    
     return filtered;
 }
 
@@ -370,11 +387,9 @@ function startDraftGame(state) {
     numRounds = draftPositions.length;
     totalPicks = numPlayers * numRounds;
     
-    // Initialize empty arrays for tracking
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
     
-    // Get draft order
     if (state.draftOrder) {
         draftOrder = state.draftOrder;
     } else {
@@ -413,7 +428,6 @@ function renderDraftScreen() {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
     
-    // Update round indicator
     if (roundIndicator) {
         roundIndicator.textContent = isDraftComplete 
             ? '🏁 Draft Complete! 🏁'
@@ -431,7 +445,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Render available items - show ALL items from unfilled categories
     if (availableContainer) {
         if (isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -442,11 +455,10 @@ function renderDraftScreen() {
             const availableCategories = getAvailableCategoriesForPlayer(currentPlayerIndex);
             
             if (itemsToShow.length === 0) {
-                availableContainer.innerHTML = `<div class="empty-state">⚠️ No items available for your remaining categories: ${availableCategories.join(', ')} ⚠️</div>`;
+                availableContainer.innerHTML = `<div class="empty-state">⚠️ No items available for: ${availableCategories.join(', ')} ⚠️</div>`;
             } else {
                 availableContainer.innerHTML = '';
                 
-                // Group items by category for better display
                 const itemsByCategory = {};
                 itemsToShow.forEach(item => {
                     if (!itemsByCategory[item.category]) {
@@ -455,7 +467,6 @@ function renderDraftScreen() {
                     itemsByCategory[item.category].push(item);
                 });
                 
-                // Display items grouped by category
                 for (const [category, items] of Object.entries(itemsByCategory)) {
                     const categoryHeader = document.createElement('div');
                     categoryHeader.className = 'category-header';
@@ -490,7 +501,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players - Show selections next to each category
     if (playersContainer && draftPositions.length > 0) {
         playersContainer.innerHTML = '';
         for (let i = 0; i < numPlayers; i++) {
@@ -499,7 +509,6 @@ function renderDraftScreen() {
             const playerItems = playersItems[i] || [];
             const filledSlots = playerFilledSlots[i] || [];
             
-            // Create a map of category -> item name
             const itemMap = {};
             playerItems.forEach(item => {
                 itemMap[item.category] = item.name;
@@ -512,12 +521,16 @@ function renderDraftScreen() {
             draftPositions.forEach((pos) => {
                 const selectedItem = itemMap[pos.position];
                 const isFilled = filledSlots.includes(pos.position);
-                const slotStyle = selectedItem ? 'color: #4CAF50;' : 'color: #999;';
                 
                 if (selectedItem) {
-                    slotsHtml += `<div style="${slotStyle}">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+                    // Selected items in green
+                    slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+                } else if (isCurrentTurn && !isFilled) {
+                    // Current slot to pick - orange color
+                    slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}: (Your turn to pick)</div>`;
                 } else {
-                    slotsHtml += `<div style="${slotStyle}">○ ${pos.position}: (Not picked yet)</div>`;
+                    // Empty slots - same color as draft picks (gray)
+                    slotsHtml += `<div style="color: #999;">○ ${pos.position}</div>`;
                 }
             });
             slotsHtml += '</div>';
@@ -532,7 +545,6 @@ function renderDraftScreen() {
         }
     }
     
-    // Update turn message
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
         if (turnMessageSpan) turnMessageSpan.innerText = "🏆 Draft is finished! 🏆";
@@ -564,7 +576,6 @@ function makePick(item) {
     const currentPlayerIndex = getCurrentPlayerIndex();
     const availableCategories = getAvailableCategoriesForPlayer(currentPlayerIndex);
     
-    // Check if the player still needs this category
     if (!availableCategories.includes(item.category)) {
         showToast(`❌ You already have a ${item.category}! You need: ${availableCategories.join(', ')}`, 3000);
         return;
@@ -577,10 +588,8 @@ function makePick(item) {
 function applyPick(data) {
     console.log('Applying pick:', data);
     
-    // Get the category from the allItemsMap (preserved original data)
     let itemCategory = allItemsMap.get(data.item);
     
-    // If not found in map, try to find in availableItems
     if (!itemCategory) {
         const foundItem = availableItems.find(i => i.name === data.item);
         if (foundItem) {
@@ -588,20 +597,17 @@ function applyPick(data) {
         }
     }
     
-    // If still not found, use the category from the pick data or default
     if (!itemCategory) {
         itemCategory = data.category || 'Unknown';
     }
     
     console.log(`Item "${data.item}" belongs to category: ${itemCategory}`);
     
-    // Remove from available items
     const itemIndex = availableItems.findIndex(i => i.name === data.item);
     if (itemIndex !== -1) {
         availableItems.splice(itemIndex, 1);
     }
     
-    // Find player index
     let playerIndex = -1;
     for (let i = 0; i < playersData.length; i++) {
         if (playersData[i].id === data.playerId || playersData[i].name === data.playerName) {
@@ -613,13 +619,11 @@ function applyPick(data) {
     console.log(`Player index: ${playerIndex}, Player name: ${data.playerName}`);
     
     if (playerIndex !== -1) {
-        // Add the pick to player's items
         playersItems[playerIndex].push({ 
             name: data.item,
             category: itemCategory
         });
         
-        // Track filled slots
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
@@ -728,7 +732,6 @@ function showToast(message, duration = 2200) {
     }
 }
 
-// Initialize
 function init() {
     if (!loadSetup()) return;
     
