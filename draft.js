@@ -32,7 +32,7 @@ let playersItems = [];
 let availableItems = [];
 let itemsWithScores = {};
 let draftOrder = [];
-let playerOrder = []; // Store the random order of players
+let playerOrder = [];
 
 // Load setup from localStorage
 function loadSetup() {
@@ -59,7 +59,7 @@ function loadSetup() {
             numPlayers: config.numPlayers,
             numRounds: config.numRounds,
             timerMinutes: config.timerMinutes,
-            draftType: config.draftType,
+            draftType: 'random',
             hostName: config.hostName || 'Host'
         }));
     } else {
@@ -70,11 +70,8 @@ function loadSetup() {
     return true;
 }
 
-// Generate random player order
 function generateRandomPlayerOrder(players) {
-    // Create array of player indices
     const indices = players.map((_, i) => i);
-    // Shuffle the array
     for (let i = indices.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [indices[i], indices[j]] = [indices[j], indices[i]];
@@ -188,7 +185,7 @@ function createGameRoom() {
         categoryName: gameConfig.categoryName,
         numRounds: numRounds,
         timerMinutes: gameConfig.timerMinutes,
-        draftType: 'random', // Set to random draft type
+        draftType: 'random',
         playerName: gameConfig.hostName || 'Host'
     };
     
@@ -285,10 +282,8 @@ function startDraftGame(state) {
         itemsWithScores[item.item_name] = item.score;
     });
     
-    // Generate random player order for display
     playerOrder = generateRandomPlayerOrder(playersData);
     
-    // Reorder playersData based on random order
     const orderedPlayers = [];
     const orderedPlayersItems = [];
     for (let i = 0; i < playerOrder.length; i++) {
@@ -400,12 +395,10 @@ function renderDraftScreen() {
 }
 
 function getOriginalPlayerIndex(displayIndex) {
-    // Map display index back to original player index
     return playerOrder[displayIndex];
 }
 
 function getPlayerNameByOriginalIndex(originalIndex) {
-    // Find player by original index in the original playersData
     for (let i = 0; i < playerOrder.length; i++) {
         if (playerOrder[i] === originalIndex) {
             return playersData[i].name;
@@ -524,7 +517,6 @@ function showToast(message, duration = 2200) {
     }
 }
 
-// Initialize
 function init() {
     if (!loadSetup()) return;
     
