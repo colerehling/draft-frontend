@@ -223,8 +223,7 @@ function setupSocketListeners() {
         if (isMyTurn) {
             startTimer(data.timeRemaining);
             renderDraftScreen();
-            const currentSlot = getCurrentSlotName();
-            showToast(`🔥 YOUR TURN! Pick a ${currentSlot}! 🔥`, 4000);
+            showToast(`🔥 YOUR TURN! Pick any item from an unfilled category! 🔥`, 4000);
         } else {
             stopTimer();
             renderDraftScreen();
@@ -343,37 +342,20 @@ function updatePlayersList() {
     }
 }
 
-function getCurrentSlotName() {
-    if (!draftPositions || draftPositions.length === 0) {
-        return 'Loading...';
-    }
-    const currentPlayerIndex = getCurrentPlayerIndex();
+function getAvailableCategoriesForPlayer(playerIndex) {
+    const filledSlots = playerFilledSlots[playerIndex] || [];
+    const allCategories = draftPositions.map(pos => pos.position);
     
-    if (currentPlayerIndex === -1) {
-        return draftPositions[0]?.position || 'Loading...';
-    }
-    
-    const slotIndex = playersItems[currentPlayerIndex]?.length || 0;
-    
-    if (slotIndex < draftPositions.length) {
-        return draftPositions[slotIndex].position;
-    }
-    return 'Complete';
+    // Return categories that haven't been filled yet
+    return allCategories.filter(category => !filledSlots.includes(category));
 }
 
 function getAvailableItemsForPlayer(playerIndex) {
-    const currentSlot = getCurrentSlotName();
+    const availableCategories = getAvailableCategoriesForPlayer(playerIndex);
     
-    if (currentSlot === 'Complete' || currentSlot === 'Loading...') {
-        return [];
-    }
-    
-    const filledSlots = playerFilledSlots[playerIndex] || [];
-    
+    // Show all items from categories that haven't been filled yet
     const filtered = availableItems.filter(item => {
-        const matchesCategory = item.category === currentSlot;
-        const alreadyFilled = filledSlots.includes(item.category);
-        return matchesCategory && !alreadyFilled;
+        return availableCategories.includes(item.category);
     });
     
     return filtered;
@@ -434,20 +416,19 @@ function renderDraftScreen() {
     const activePlayerNameSpan = document.getElementById('activePlayerName');
     const turnMessageSpan = document.getElementById('turnMessage');
     const roundIndicator = document.getElementById('roundIndicator');
-    const currentSlotIndicatorSpan = document.getElementById('currentSlotName');
+    const currentPickNumberSpan = document.getElementById('currentPickNumber');
     const currentPlayerIndex = getCurrentPlayerIndex();
     const isDraftComplete = currentPickIndex >= draftOrder.length;
-    const currentSlot = getCurrentSlotName();
     
-    // Update UI elements
-    if (currentSlotIndicatorSpan) {
-        currentSlotIndicatorSpan.textContent = isDraftComplete ? 'Complete!' : currentSlot;
-    }
-    
+    // Update round indicator
     if (roundIndicator) {
         roundIndicator.textContent = isDraftComplete 
             ? '🏁 Draft Complete! 🏁'
-            : `${currentSlot} | Pick ${currentPickIndex + 1} of ${totalPicks}`;
+            : `Round ${currentRound} of ${numRounds} | Pick ${currentPickIndex + 1} of ${totalPicks}`;
+    }
+    
+    if (currentPickNumberSpan) {
+        currentPickNumberSpan.textContent = `${currentPickIndex + 1} of ${totalPicks}`;
     }
     
     if (poolCountSpan) {
@@ -455,13 +436,13 @@ function renderDraftScreen() {
             poolCountSpan.innerText = 'Draft Complete!';
         } else if (currentPlayerIndex !== -1) {
             const itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
-            poolCountSpan.innerText = `${itemsToShow.length} ${currentSlot} items available`;
+            poolCountSpan.innerText = `${itemsToShow.length} items available`;
         } else {
             poolCountSpan.innerText = 'Loading...';
         }
     }
     
-    // Render available items
+    // Render available items - show ALL items from unfilled categories
     if (availableContainer) {
         if (isDraftComplete) {
             availableContainer.innerHTML = '<div class="empty-state">🏁 Draft complete!</div>';
@@ -469,30 +450,53 @@ function renderDraftScreen() {
             availableContainer.innerHTML = '<div class="empty-state">⏳ Waiting for draft to start...</div>';
         } else {
             const itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
+            const availableCategories = getAvailableCategoriesForPlayer(currentPlayerIndex);
             
             if (itemsToShow.length === 0) {
-                availableContainer.innerHTML = `<div class="empty-state">⚠️ No ${currentSlot} items available! ⚠️</div>`;
+                availableContainer.innerHTML = `<div class="empty-state">⚠️ No items available for your remaining categories: ${availableCategories.join(', ')} ⚠️</div>`;
             } else {
                 availableContainer.innerHTML = '';
+                
+                // Group items by category for better display
+                const itemsByCategory = {};
                 itemsToShow.forEach(item => {
-                    const canDraft = gameStarted && isMyTurn && !isDraftComplete;
-                    const card = document.createElement('div');
-                    card.className = 'draft-card';
-                    card.innerHTML = `
-                        <div class="item-info">
-                            <span class="item-name">${escapeHtml(item.name)}</span>
-                            <span class="item-category">📋 ${escapeHtml(item.category)}</span>
-                        </div>
-                        <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
-                            ${canDraft ? '⚡ Draft' : '🔒 Locked'}
-                        </button>
-                    `;
-                    const btn = card.querySelector('.draft-btn');
-                    if (canDraft) {
-                        btn.onclick = () => makePick(item);
+                    if (!itemsByCategory[item.category]) {
+                        itemsByCategory[item.category] = [];
                     }
-                    availableContainer.appendChild(card);
+                    itemsByCategory[item.category].push(item);
                 });
+                
+                // Display items grouped by category
+                for (const [category, items] of Object.entries(itemsByCategory)) {
+                    const categoryHeader = document.createElement('div');
+                    categoryHeader.className = 'category-header';
+                    categoryHeader.innerHTML = `<strong>📋 ${category}</strong> <span class="category-count">(${items.length} items)</span>`;
+                    availableContainer.appendChild(categoryHeader);
+                    
+                    const categoryGrid = document.createElement('div');
+                    categoryGrid.className = 'category-grid';
+                    
+                    items.forEach(item => {
+                        const canDraft = gameStarted && isMyTurn && !isDraftComplete;
+                        const card = document.createElement('div');
+                        card.className = `draft-card ${canDraft ? 'clickable' : 'disabled'}`;
+                        card.innerHTML = `
+                            <div class="item-info">
+                                <span class="item-name">${escapeHtml(item.name)}</span>
+                            </div>
+                            <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
+                                ${canDraft ? '⚡ Draft' : '🔒 Locked'}
+                            </button>
+                        `;
+                        const btn = card.querySelector('.draft-btn');
+                        if (canDraft) {
+                            btn.onclick = () => makePick(item);
+                        }
+                        categoryGrid.appendChild(card);
+                    });
+                    
+                    availableContainer.appendChild(categoryGrid);
+                }
             }
         }
     }
@@ -504,6 +508,7 @@ function renderDraftScreen() {
             const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
             const playerName = getPlayerName(i);
             const playerItems = playersItems[i] || [];
+            const filledSlots = playerFilledSlots[i] || [];
             
             // Create a map of category -> item name for easy lookup
             const itemMap = {};
@@ -514,17 +519,14 @@ function renderDraftScreen() {
             const playerCol = document.createElement('div');
             playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
             
-            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections:</strong><br>';
-            draftPositions.forEach((pos, idx) => {
+            let slotsHtml = '<div class="player-slots"><strong>🎯 Selections (Pick any unfilled category):</strong><br>';
+            draftPositions.forEach((pos) => {
                 const selectedItem = itemMap[pos.position];
-                const isCurrentSlot = idx === playerItems.length && isCurrentTurn && !isDraftComplete;
-                const slotStyle = selectedItem ? 'color: #4CAF50;' : (isCurrentSlot ? 'color: #ff9800; font-weight: bold;' : 'color: #999;');
+                const isFilled = filledSlots.includes(pos.position);
+                const slotStyle = selectedItem ? 'color: #4CAF50;' : 'color: #999;';
                 
                 if (selectedItem) {
-                    // Show the category with the selected item
                     slotsHtml += `<div style="${slotStyle}">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
-                } else if (isCurrentSlot) {
-                    slotsHtml += `<div style="${slotStyle}">▶ ${pos.position}: (Pick now)</div>`;
                 } else {
                     slotsHtml += `<div style="${slotStyle}">○ ${pos.position}: (Not picked yet)</div>`;
                 }
@@ -550,7 +552,8 @@ function renderDraftScreen() {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = currentPlayerName;
         if (turnMessageSpan) {
             if (gameStarted && isMyTurn && !isDraftComplete) {
-                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Pick a ${currentSlot}! 🎯`;
+                const availableCategories = getAvailableCategoriesForPlayer(currentPlayerIndex);
+                turnMessageSpan.innerHTML = `🎯 YOUR TURN! Pick any item from: ${availableCategories.join(', ')} 🎯`;
                 turnMessageSpan.style.color = '#facc15';
             } else if (gameStarted) {
                 turnMessageSpan.innerHTML = `${currentPlayerName}'s turn...`;
@@ -569,14 +572,16 @@ function makePick(item) {
         return;
     }
     
-    const currentSlot = getCurrentSlotName();
+    const currentPlayerIndex = getCurrentPlayerIndex();
+    const availableCategories = getAvailableCategoriesForPlayer(currentPlayerIndex);
     
-    if (item.category !== currentSlot) {
-        showToast(`❌ Please select a ${currentSlot}!`, 2000);
+    // Check if the player still needs this category
+    if (!availableCategories.includes(item.category)) {
+        showToast(`❌ You already have a ${item.category}! You need: ${availableCategories.join(', ')}`, 3000);
         return;
     }
     
-    console.log(`Making pick: ${item.name}`);
+    console.log(`Making pick: ${item.name} for category ${item.category}`);
     socket.emit('makePick', { roomCode: roomCode, itemName: item.name });
 }
 
@@ -599,19 +604,19 @@ function applyPick(data) {
     }
     
     if (playerIndex !== -1) {
-        const currentSlotIndex = playersItems[playerIndex].length;
-        const slotCategory = draftPositions[currentSlotIndex]?.position || 'Unknown';
+        // Find which category this item belongs to
+        const itemCategory = availableItems.find(i => i.name === data.item)?.category || data.category;
         
         playersItems[playerIndex].push({ 
             name: data.item,
-            category: slotCategory
+            category: itemCategory
         });
         
         if (!playerFilledSlots[playerIndex]) {
             playerFilledSlots[playerIndex] = [];
         }
-        if (!playerFilledSlots[playerIndex].includes(slotCategory)) {
-            playerFilledSlots[playerIndex].push(slotCategory);
+        if (!playerFilledSlots[playerIndex].includes(itemCategory)) {
+            playerFilledSlots[playerIndex].push(itemCategory);
         }
     }
     
