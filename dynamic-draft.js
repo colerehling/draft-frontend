@@ -185,24 +185,41 @@ function setupSocketListeners() {
             console.log('Found positions at state.draftState.positions:', draftPositions);
         }
         
-        // Extract items
-        if (state.availableItems) {
-            availableItems = state.availableItems;
-        } else if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
+        // CRITICAL FIX: Transform itemsWithScores into availableItems with proper structure
+        if (state.itemsWithScores && Array.isArray(state.itemsWithScores)) {
+            // This is the correct format - itemsWithScores has item_name, category, score
             availableItems = state.itemsWithScores.map(item => ({
                 name: item.item_name,
                 category: item.category,
-                score: item.score
+                score: parseFloat(item.score) || 0
             }));
+            console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores`);
+            console.log('Sample transformed item:', availableItems[0]);
+            
+            // Verify we have Main category items
+            const mainItems = availableItems.filter(i => i.category === 'Main');
+            console.log(`Found ${mainItems.length} items with category 'Main':`, mainItems.slice(0, 3));
+        } else if (state.availableItems && Array.isArray(state.availableItems) && state.itemsWithScores) {
+            // Fallback: if availableItems is strings but we have itemsWithScores
+            availableItems = state.itemsWithScores.map(item => ({
+                name: item.item_name,
+                category: item.category,
+                score: parseFloat(item.score) || 0
+            }));
+            console.log(`✅ Transformed ${availableItems.length} items from itemsWithScores (fallback)`);
+        } else {
+            console.error('❌ No valid items data found in state!');
         }
         
         // Get template name
         if (state.categoryName) {
             currentTemplateDisplayName = state.categoryName;
+        } else if (state.draftState && state.draftState.categoryName) {
+            currentTemplateDisplayName = state.draftState.categoryName;
         }
         
         console.log('Final draftPositions:', draftPositions);
-        console.log('✅ Slots loaded from server:', draftPositions);
+        console.log('Final availableItems count:', availableItems.length);
         
         startDraftGame(state);
     });
@@ -336,18 +353,15 @@ function updatePlayersList() {
 
 function getCurrentSlotName() {
     if (!draftPositions || draftPositions.length === 0) {
-        console.log('getCurrentSlotName - draftPositions empty');
         return 'Loading...';
     }
     const currentPlayerIndex = getCurrentPlayerIndex();
-    console.log(`getCurrentSlotName - currentPlayerIndex: ${currentPlayerIndex}`);
     
     if (currentPlayerIndex === -1) {
         return draftPositions[0]?.position || 'Loading...';
     }
     
     const slotIndex = playersItems[currentPlayerIndex]?.length || 0;
-    console.log(`getCurrentSlotName - slotIndex: ${slotIndex}, playersItems length: ${playersItems[currentPlayerIndex]?.length}`);
     
     if (slotIndex < draftPositions.length) {
         return draftPositions[slotIndex].position;
@@ -358,29 +372,19 @@ function getCurrentSlotName() {
 function getAvailableItemsForPlayer(playerIndex) {
     const currentSlot = getCurrentSlotName();
     
-    console.log(`getAvailableItemsForPlayer - Current slot: ${currentSlot}`);
-    console.log(`getAvailableItemsForPlayer - Total available items: ${availableItems.length}`);
-    
     if (currentSlot === 'Complete' || currentSlot === 'Loading...') {
         return [];
     }
     
     const filledSlots = playerFilledSlots[playerIndex] || [];
-    console.log(`getAvailableItemsForPlayer - Filled slots for player ${playerIndex}:`, filledSlots);
     
     const filtered = availableItems.filter(item => {
         const matchesCategory = item.category === currentSlot;
         const alreadyFilled = filledSlots.includes(item.category);
-        if (!matchesCategory) {
-            console.log(`Item "${item.name}" has category "${item.category}" but we need "${currentSlot}"`);
-        }
         return matchesCategory && !alreadyFilled;
     });
     
-    console.log(`getAvailableItemsForPlayer - Found ${filtered.length} items for slot ${currentSlot}`);
-    if (filtered.length === 0 && availableItems.length > 0) {
-        console.log('Available item categories:', [...new Set(availableItems.map(i => i.category))]);
-    }
+    console.log(`Slot: ${currentSlot}, Found ${filtered.length} items`);
     
     return filtered;
 }
@@ -405,9 +409,6 @@ function startDraftGame(state) {
     // Initialize empty arrays for tracking
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
-    
-    console.log(`Initialized playersItems for ${numPlayers} players`);
-    console.log(`playerFilledSlots initialized:`, playerFilledSlots);
     
     // Get draft order
     if (state.draftOrder) {
@@ -480,8 +481,6 @@ function renderDraftScreen() {
             availableContainer.innerHTML = '<div class="empty-state">⏳ Waiting for draft to start...</div>';
         } else {
             const itemsToShow = getAvailableItemsForPlayer(currentPlayerIndex);
-            
-            console.log(`Rendering - Current player index: ${currentPlayerIndex}, Current slot: ${currentSlot}, Items to show: ${itemsToShow.length}`);
             
             if (itemsToShow.length === 0) {
                 availableContainer.innerHTML = `<div class="empty-state">⚠️ No ${currentSlot} items available! ⚠️</div>`;
