@@ -61,7 +61,7 @@ function loadSetup() {
             templateDisplayName: config.templateDisplayName,
             numPlayers: config.numPlayers,
             timerMinutes: config.timerMinutes,
-            draftType: config.draftType,
+            draftType: config.draftType || 'snake',
             hostName: config.hostName || 'Host'
         }));
         
@@ -205,7 +205,6 @@ function setupSocketListeners() {
         console.log('Turn change:', data);
         isMyTurn = (data.playerId === myPlayerId);
         
-        // Always update timer display for all players
         if (data.timeRemaining) {
             updateTimerDisplayOnly(data.timeRemaining);
         }
@@ -273,7 +272,7 @@ function createGameRoom() {
         numPlayers: numPlayers,
         draftMode: 'dynamic',
         timerMinutes: gameConfig.timerMinutes,
-        draftType: gameConfig.draftType,
+        draftType: gameConfig.draftType || 'snake',
         templateName: gameConfig.templateName,
         templateDisplayName: gameConfig.templateDisplayName,
         playerName: gameConfig.hostName || 'Host'
@@ -390,28 +389,19 @@ function startDraftGame(state) {
     playersItems = playersData.map(() => []);
     playerFilledSlots = playersData.map(() => []);
     
-    if (state.draftOrder) {
-        draftOrder = state.draftOrder;
-    } else {
-        const draftType = state.draftType || 'snake';
-        draftOrder = [];
-        for (let round = 1; round <= numRounds; round++) {
-            if (draftType === 'snake' && round % 2 === 0) {
-                for (let i = numPlayers - 1; i >= 0; i--) {
-                    draftOrder.push({ playerIndex: i, round: round });
-                }
-            } else {
-                for (let i = 0; i < numPlayers; i++) {
-                    draftOrder.push({ playerIndex: i, round: round });
-                }
-            }
-        }
-    }
-    
-    currentPickIndex = 0;
-    currentRound = 1;
+    draftOrder = state.draftOrder;
+    currentPickIndex = state.currentPickIndex || 0;
+    currentRound = draftOrder[currentPickIndex]?.round || 1;
     TIMER_DURATION = state.timerSeconds || 180;
     timeRemaining = TIMER_DURATION;
+    
+    console.log('=== FRONTEND DYNAMIC DRAFT ORDER ===');
+    console.log('Players in display order:', playersData.map(p => p.name));
+    console.log('Draft order:');
+    draftOrder.forEach(pick => {
+        console.log(`Pick ${pick.pickNumber}: Round ${pick.round}, Player: ${playersData[pick.playerIndex]?.name} (Index ${pick.playerIndex})`);
+    });
+    console.log('====================================');
     
     document.getElementById('categoryTitle').innerHTML = '📦 ' + currentTemplateDisplayName;
     
@@ -470,7 +460,7 @@ function renderDraftScreen() {
                 for (const [category, items] of Object.entries(itemsByCategory)) {
                     const categoryHeader = document.createElement('div');
                     categoryHeader.className = 'category-header';
-                    categoryHeader.innerHTML = `<strong>📋 ${category}</strong> <span class="category-count">(${items.length} items)</span>`;
+                    categoryHeader.innerHTML = `<strong style="color: #eef2ff;">📋 ${category}</strong> <span class="category-count" style="color: #94a3b8;">(${items.length} items)</span>`;
                     availableContainer.appendChild(categoryHeader);
                     
                     const categoryGrid = document.createElement('div');
@@ -482,7 +472,7 @@ function renderDraftScreen() {
                         card.className = `draft-card ${canDraft ? 'clickable' : 'disabled'}`;
                         card.innerHTML = `
                             <div class="item-info">
-                                <span class="item-name">${escapeHtml(item.name)}</span>
+                                <span class="item-name" style="color: #eef2ff;">${escapeHtml(item.name)}</span>
                             </div>
                             <button class="draft-btn ${canDraft ? 'active-turn' : ''}" ${!canDraft ? 'disabled' : ''}>
                                 ${canDraft ? '⚡ Draft' : '🔒 Locked'}
@@ -501,52 +491,47 @@ function renderDraftScreen() {
         }
     }
     
-    // Render players - Show selections next to each category
-if (playersContainer && draftPositions.length > 0) {
-    playersContainer.innerHTML = '';
-    for (let i = 0; i < numPlayers; i++) {
-        const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
-        const playerName = getPlayerName(i);
-        const playerItems = playersItems[i] || [];
-        const filledSlots = playerFilledSlots[i] || [];
-        
-        const itemMap = {};
-        playerItems.forEach(item => {
-            itemMap[item.category] = item.name;
-        });
-        
-        const playerCol = document.createElement('div');
-        playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
-        
-        let slotsHtml = '<div class="player-slots" style="display: flex; flex-direction: column; gap: 5px;"><strong style="color: #eef2ff;">🎯 Selections:</strong>';
-        
-        // Display each category on its own line with colon after category name
-        draftPositions.forEach((pos) => {
-            const selectedItem = itemMap[pos.position];
-            const isFilled = filledSlots.includes(pos.position);
+    if (playersContainer && draftPositions.length > 0) {
+        playersContainer.innerHTML = '';
+        for (let i = 0; i < numPlayers; i++) {
+            const isCurrentTurn = (!isDraftComplete && currentPlayerIndex === i);
+            const playerName = getPlayerName(i);
+            const playerItems = playersItems[i] || [];
+            const filledSlots = playerFilledSlots[i] || [];
             
-            if (selectedItem) {
-                // Selected items in green
-                slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
-            } else if (isCurrentTurn && !isFilled) {
-                // Current slot to pick - orange color
-                slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}:</div>`;
-            } else {
-                // Empty slots - same color as item names in available pool (#eef2ff)
-                slotsHtml += `<div style="color: #eef2ff;">○ ${pos.position}:</div>`;
-            }
-        });
-        slotsHtml += '</div>';
-        
-        playerCol.innerHTML = `
-            <div class="player-header">
-                <div class="player-name" style="color: #eef2ff;">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
-            </div>
-            ${slotsHtml}
-        `;
-        playersContainer.appendChild(playerCol);
+            const itemMap = {};
+            playerItems.forEach(item => {
+                itemMap[item.category] = item.name;
+            });
+            
+            const playerCol = document.createElement('div');
+            playerCol.className = `player-col ${isCurrentTurn ? 'highlight-turn' : ''}`;
+            
+            let slotsHtml = '<div class="player-slots" style="display: flex; flex-direction: column; gap: 5px;"><strong style="color: #eef2ff;">🎯 Selections:</strong>';
+            
+            draftPositions.forEach((pos) => {
+                const selectedItem = itemMap[pos.position];
+                const isFilled = filledSlots.includes(pos.position);
+                
+                if (selectedItem) {
+                    slotsHtml += `<div style="color: #4CAF50;">✓ ${pos.position}: ${escapeHtml(selectedItem)}</div>`;
+                } else if (isCurrentTurn && !isFilled) {
+                    slotsHtml += `<div style="color: #ff9800; font-weight: bold;">▶ ${pos.position}:</div>`;
+                } else {
+                    slotsHtml += `<div style="color: #eef2ff;">○ ${pos.position}:</div>`;
+                }
+            });
+            slotsHtml += '</div>';
+            
+            playerCol.innerHTML = `
+                <div class="player-header">
+                    <div class="player-name" style="color: #eef2ff;">${getPlayerIcon(i)} ${escapeHtml(playerName)}</div>
+                </div>
+                ${slotsHtml}
+            `;
+            playersContainer.appendChild(playerCol);
+        }
     }
-}
     
     if (isDraftComplete) {
         if (activePlayerNameSpan) activePlayerNameSpan.innerText = "Complete!";
