@@ -59,7 +59,7 @@ function loadSetup() {
             numPlayers: config.numPlayers,
             numRounds: config.numRounds,
             timerMinutes: config.timerMinutes,
-            draftType: 'random',
+            draftType: 'snake',
             hostName: config.hostName || 'Host'
         }));
     } else {
@@ -176,7 +176,7 @@ function createGameRoom() {
         categoryName: gameConfig.categoryName,
         numRounds: numRounds,
         timerMinutes: gameConfig.timerMinutes,
-        draftType: 'random',
+        draftType: 'snake',
         playerName: gameConfig.hostName || 'Host'
     };
     
@@ -262,7 +262,7 @@ function startDraftGame(state) {
     document.getElementById('mainTitle').innerHTML = '🎮 MULTIPLAYER DRAFT';
     document.getElementById('subTitle').innerHTML = `Room: ${roomCode} | ${state.categoryName}`;
     
-    // Use the server's ordered data
+    // Use the server's ordered players - DO NOT REORDER AGAIN
     playersData = state.players;
     playerOrder = state.randomPlayerOrder;
     numPlayers = state.players.length;
@@ -280,6 +280,14 @@ function startDraftGame(state) {
     currentRound = draftOrder[currentPickIndex]?.round || 1;
     TIMER_DURATION = state.timerSeconds;
     timeRemaining = TIMER_DURATION;
+    
+    console.log('=== FRONTEND DRAFT ORDER ===');
+    console.log('Players in display order:', playersData.map(p => p.name));
+    console.log('Draft order:');
+    draftOrder.forEach(pick => {
+        console.log(`Pick ${pick.pickNumber}: Round ${pick.round}, Player: ${playersData[pick.playerIndex]?.name} (Index ${pick.playerIndex})`);
+    });
+    console.log('============================');
     
     document.getElementById('categoryTitle').innerHTML = '📦 ' + state.categoryName;
     
@@ -377,7 +385,6 @@ function renderDraftScreen() {
 
 function getCurrentPlayerIndex() {
     if (currentPickIndex >= draftOrder.length) return -1;
-    // draftOrder now contains indices that match the displayed player order
     return draftOrder[currentPickIndex].playerIndex;
 }
 
